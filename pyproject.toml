@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "dqn-super-mario-bros"
+version = "0.1.0"
+description = ""
+authors = ["Antoine LR Debugne <alrdebugne@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+torch = "^1.10.2"
+numpy = "^1.22.2"
+gym = "^0.22.0"
+gym-super-mario-bros = "^7.3.2"
+matplotlib = "^3.5.1"
+ipykernel = "^6.9.1"
+opencv-python = "^4.5.5"
+black = "^22.1.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
