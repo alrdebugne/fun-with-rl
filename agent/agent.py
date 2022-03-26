@@ -1,7 +1,10 @@
+from pathlib import Path
+import pickle
 import random
-from typing import Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import torch
 import torch.nn as nn
 
@@ -21,25 +24,41 @@ class DDQNAgent:
 
     def __init__(
         self,
-        state_space: np.array,
+        state_space: npt.NDArray[np.float64],
         action_space: int,
         max_memory_size: int,
         batch_size: int,
         gamma: float,
         lr: float,
         dropout: float,
-        exploration_max,
-        exploration_min,
-        exploration_decay,
+        exploration_max: float,
+        exploration_min: float,
+        exploration_decay: float,
+        save_dir: Optional[Union[Path, str]],
+        is_pretrained: bool,
     ):
         """ """
         # --- Define layers for DDQN ---
         self.state_space = state_space
         self.action_space = action_space
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.save_dir = save_dir
+        self.is_pretrained = is_pretrained
         # Since this is Double Q-Learning, we instantiate two networks: one local for policies, one target for XX
         self.primary_net = DQNetwork(state_space, action_space, dropout).to(self.device)
         self.target_net = DQNetwork(state_space, action_space, dropout).to(self.device)
+        if self.is_pretrained:
+            if self.save_dir is None:
+                raise ValueError("`save_dir` must be specified for resuming training")
+            # Load weights from previous iteration
+            self.primary_net.load_state_dict(
+                torch.load(dir / Path("dq_primary.pt")),
+                map_location=torch.device(self.device),
+            )
+            self.target_net.load_state_dict(
+                torch.load(dir / Path("dq_target.pt")),
+                map_location=torch.device(self.device),
+            )
         self.optimizer = torch.optim.Adam(self.primary_net.parameters(), lr=lr)
         # ^ keep default params for now: lr = 0.001, betas = (0.9, 0.999), eps = 1e-8
         self.copy = 5000  # copy local weights to target network after `copy` steps
@@ -48,15 +67,26 @@ class DDQNAgent:
         # --- Create memory ---
         # (for experience replay)
         self.max_memory_size = max_memory_size
-        self.STATE_MEM = torch.zeros(max_memory_size, *self.state_space)
-        self.STATE2_MEM = torch.zeros(max_memory_size, *self.state_space)
-        self.ACTION_MEM = torch.zeros(max_memory_size, 1)
-        self.REWARD_MEM = torch.zeros(max_memory_size, 1)
-        self.DONE_MEM = torch.zeros(max_memory_size, 1)
-        self.memory_pointer = 0  # pointer in memory buffer
-        self.memory_num_experiences = 0  # number of experiences in memory
-
         self.memory_sample_size = batch_size
+
+        if self.is_pretrained:
+            self.STATE_MEM = torch.load(dir / Path("STATE_MEM.pt"))
+            self.STATE2_MEM = torch.load(dir / Path("STATE2_MEM.pt"))
+            self.ACTION_MEM = torch.load(dir / Path("ACTION_MEM.pt"))
+            self.REWARD_MEM = torch.load(dir / Path("REWARD_MEM.pt"))
+            self.DONE_MEM = torch.load(dir / Path("DONE_MEM.pt"))
+            with open("memory_pointer", "rb") as f:
+                self.memory_pointer = pickle.load(f)
+            with open("memory_num_experiences", "rb") as f:
+                self.memory_num_experiences = pickle.load(f)
+        else:
+            self.STATE_MEM = torch.zeros(max_memory_size, *self.state_space)
+            self.STATE2_MEM = torch.zeros(max_memory_size, *self.state_space)
+            self.ACTION_MEM = torch.zeros(max_memory_size, 1)
+            self.REWARD_MEM = torch.zeros(max_memory_size, 1)
+            self.DONE_MEM = torch.zeros(max_memory_size, 1)
+            self.memory_pointer = 0  # pointer in memory buffer
+            self.memory_num_experiences = 0  # number of experiences in memory
 
         # --- Learning parameters ---
         self.gamma = gamma
@@ -128,7 +158,7 @@ class DDQNAgent:
         if self.step % self.copy == 0:
             self.copy_target_to_primary()
 
-        # Only start experience replay once the buffer is full
+        # Only start experience replay once there are more experiences than batch size
         if self.memory_sample_size > self.memory_num_experiences:
             return
 
@@ -156,9 +186,9 @@ class DDQNAgent:
         # then target = reward
 
         # Note on syntax (for torch newbies):
-        # - `gamma * net(state)` returns the probabilities over the action space
+        # - `gamma * net(state)` returns the discounted predicted rewards over the action space
         #   (e.g. tensor([[-0.0337,  0.0123,  0.0229, -0.0087, -0.0145]]))
-        # - calling `.max(1).values` returns the maximum over dimension 1
+        # - calling `.max(1).values` returns the maximum over dimension 1, i.e. our max. reward
         #   (e.g. tensor([0.0229])). `.values` is required because `.max(dim)` returns
         #   a namedtuple (values, indices).
         # - .unsqueeze(1) formats to 'nested' tensor again (e.g. tensor([[0.0229]])

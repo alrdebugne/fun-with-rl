@@ -5,8 +5,11 @@ TODO: add description
 
 import click
 import logging
+import pickle
 from tqdm import tqdm
+from pathlib import Path
 
+import matplotlib.pyplot as plt
 import torch
 import gym_super_mario_bros
 from gym_super_mario_bros.actions import RIGHT_ONLY
@@ -20,16 +23,38 @@ def make_env(env):
     """Simplify screen following original Atari paper"""
     env = wrappers.MaxAndSkipEnv(env)  # repeat action over four frames
     env = wrappers.ProcessFrame84(env)  # size to 84 * 84 and greyscale
-    env = wrappers.ImageToPyTorch(env)  # convert to (C, H, W) for PyTorch
+    env = wrappers.ImageToPyTorch(env)  # convert to (C, H, W) for pytorch
     env = wrappers.BufferWrapper(env, 4)  # stack four frames in one 'input'
     env = wrappers.ScaledFloatFrame(env)  # normalise RGB values to [0, 1]
     return JoypadSpace(env, RIGHT_ONLY)
 
 
+def save_progress(dir: Path, agent: DDQNAgent, rewards: list):
+    """Saves network states and parameters to resume training"""
+    # TODO: move to method from agent?
+
+    with open(dir / Path("memory_pointer.pkl"), "wb") as f:
+        pickle.dump(agent.memory_pointer, f)
+    with open(dir / Path("memory_num_experiences.pkl"), "wb") as f:
+        pickle.dump(agent.memory_num_experiences, f)
+    with open(dir / Path("rewards.pkl"), "wb") as f:
+        pickle.dump(rewards, f)
+
+    torch.save(agent.primary_net.state_dict(), dir / Path("dq_primary.pt"))
+    torch.save(agent.target_net.state_dict(), dir / Path("dq_target.pt"))
+    torch.save(agent.STATE_MEM, dir / Path("STATE_MEM.pt"))
+    torch.save(agent.ACTION_MEM, dir / Path("ACTION_MEM.pt"))
+    torch.save(agent.REWARD_MEM, dir / Path("REWARD_MEM.pt"))
+    torch.save(agent.STATE2_MEM, dir / Path("STATE2_MEM.pt"))
+    torch.save(agent.DONE_MEM, dir / Path("DONE_MEM.pt"))
+
+
 @click.command()
 @click.option("--lr", default=0.002, help="Learning rate")
 @click.option("--num_episodes", default=10000, help="Number of learning episodes")
-def train(lr, num_episodes):
+@click.option("--save_dir", default="./", help="Path for saving model iterations")
+@click.option("--pretrained", default=False, help="Whether model should resume learning from past save")
+def train(lr: float, num_episodes: int, save_dir: str, pretrained: bool):
     """
     Main run function to train agent
     TODO: docstring
