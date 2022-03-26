@@ -37,8 +37,12 @@ def save_progress(dir: Path, agent: DDQNAgent, rewards: list):
         pickle.dump(agent.memory_pointer, f)
     with open(dir / Path("memory_num_experiences.pkl"), "wb") as f:
         pickle.dump(agent.memory_num_experiences, f)
-    with open(dir / Path("rewards.pkl"), "wb") as f:
-        pickle.dump(rewards, f)
+    try:
+        with open(dir / Path("rewards.pkl"), "wb") as f:
+            pickle.dump(rewards, f)
+    except:
+        pass
+        # TODO: fix: rewards.pkl doesn't get created inside agent
 
     torch.save(agent.primary_net.state_dict(), dir / Path("dq_primary.pt"))
     torch.save(agent.target_net.state_dict(), dir / Path("dq_target.pt"))
