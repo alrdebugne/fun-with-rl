@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 import pickle
 import random
@@ -50,14 +51,19 @@ class DDQNAgent:
         if self.is_pretrained:
             if self.save_dir is None:
                 raise ValueError("`save_dir` must be specified for resuming training")
+            logging.info("Loading weights from previous runs...")
             # Load weights from previous iteration
             self.primary_net.load_state_dict(
-                torch.load(self.save_dir / Path("dq_primary.pt")),
-                map_location=torch.device(self.device),
+                torch.load(
+                    self.save_dir / Path("dq_primary.pt"),
+                    map_location=torch.device(self.device),
+                )
             )
             self.target_net.load_state_dict(
-                torch.load(self.save_dir / Path("dq_target.pt")),
-                map_location=torch.device(self.device),
+                torch.load(
+                    self.save_dir / Path("dq_target.pt"),
+                    map_location=torch.device(self.device),
+                )
             )
         self.optimizer = torch.optim.Adam(self.primary_net.parameters(), lr=lr)
         # ^ keep default params for now: lr = 0.001, betas = (0.9, 0.999), eps = 1e-8
@@ -70,15 +76,17 @@ class DDQNAgent:
         self.memory_sample_size = batch_size
 
         if self.is_pretrained:
+            logging.info("Loading memory from previous runs...")
             self.STATE_MEM = torch.load(self.save_dir / Path("STATE_MEM.pt"))
             self.STATE2_MEM = torch.load(self.save_dir / Path("STATE2_MEM.pt"))
             self.ACTION_MEM = torch.load(self.save_dir / Path("ACTION_MEM.pt"))
             self.REWARD_MEM = torch.load(self.save_dir / Path("REWARD_MEM.pt"))
             self.DONE_MEM = torch.load(self.save_dir / Path("DONE_MEM.pt"))
-            with open("memory_pointer", "rb") as f:
+            with open(self.save_dir / Path("memory_pointer.pkl"), "rb") as f:
                 self.memory_pointer = pickle.load(f)
-            with open("memory_num_experiences", "rb") as f:
+            with open(self.save_dir / Path("memory_num_experiences.pkl"), "rb") as f:
                 self.memory_num_experiences = pickle.load(f)
+            # TODO: also resume learning & exploration rates
         else:
             self.STATE_MEM = torch.zeros(max_memory_size, *self.state_space)
             self.STATE2_MEM = torch.zeros(max_memory_size, *self.state_space)
