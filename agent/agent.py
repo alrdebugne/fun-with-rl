@@ -52,11 +52,11 @@ class DDQNAgent:
                 raise ValueError("`save_dir` must be specified for resuming training")
             # Load weights from previous iteration
             self.primary_net.load_state_dict(
-                torch.load(dir / Path("dq_primary.pt")),
+                torch.load(self.save_dir / Path("dq_primary.pt")),
                 map_location=torch.device(self.device),
             )
             self.target_net.load_state_dict(
-                torch.load(dir / Path("dq_target.pt")),
+                torch.load(self.save_dir / Path("dq_target.pt")),
                 map_location=torch.device(self.device),
             )
         self.optimizer = torch.optim.Adam(self.primary_net.parameters(), lr=lr)
@@ -70,11 +70,11 @@ class DDQNAgent:
         self.memory_sample_size = batch_size
 
         if self.is_pretrained:
-            self.STATE_MEM = torch.load(dir / Path("STATE_MEM.pt"))
-            self.STATE2_MEM = torch.load(dir / Path("STATE2_MEM.pt"))
-            self.ACTION_MEM = torch.load(dir / Path("ACTION_MEM.pt"))
-            self.REWARD_MEM = torch.load(dir / Path("REWARD_MEM.pt"))
-            self.DONE_MEM = torch.load(dir / Path("DONE_MEM.pt"))
+            self.STATE_MEM = torch.load(self.save_dir / Path("STATE_MEM.pt"))
+            self.STATE2_MEM = torch.load(self.save_dir / Path("STATE2_MEM.pt"))
+            self.ACTION_MEM = torch.load(self.save_dir / Path("ACTION_MEM.pt"))
+            self.REWARD_MEM = torch.load(self.save_dir / Path("REWARD_MEM.pt"))
+            self.DONE_MEM = torch.load(self.save_dir / Path("DONE_MEM.pt"))
             with open("memory_pointer", "rb") as f:
                 self.memory_pointer = pickle.load(f)
             with open("memory_num_experiences", "rb") as f:
