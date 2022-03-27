@@ -57,7 +57,11 @@ def save_progress(dir: Path, agent: DDQNAgent, rewards: list):
 @click.option("--lr", default=0.002, help="Learning rate")
 @click.option("--num_episodes", default=10000, help="Number of learning episodes")
 @click.option("--save_dir", default="./", help="Path for saving model iterations")
-@click.option("--pretrained", default=False, help="Whether model should resume learning from past save")
+@click.option(
+    "--pretrained",
+    default=False,
+    help="Whether model should resume learning from past save",
+)
 def train(lr: float, num_episodes: int, save_dir: str, pretrained: bool):
     """
     Main run function to train agent

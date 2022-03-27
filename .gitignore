@@ -1,7 +1,12 @@
 # Save states
 data/
+
 # Notebooks
 *.ipynb
+
 # Caches
-__pychache__/*
-*.pyc
+__pycache__/
+*.py[cod]
+
+# macOS stuff
+.DS_Store

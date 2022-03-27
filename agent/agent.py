@@ -163,7 +163,7 @@ class DDQNAgent:
         between adjacent frames.
         """
         # Update target model weights every `self.copy` steps
-        if self.step % self.copy == 0:
+        if (self.step % self.copy == 0) and not (self.is_pretrained and self.step == 0):
             self.copy_target_to_primary()
 
         # Only start experience replay once there are more experiences than batch size
@@ -172,12 +172,11 @@ class DDQNAgent:
 
         # Recall batches of experience, selected at random
         STATE, ACTION, REWARD, STATE2, DONE = self.recall()
-        # STATE = STATE.to(self.device)
-        # ACTION = ACTION.to(self.device)
-        # REWARD = REWARD.to(self.device)
-        # STATE2 = STATE2.to(self.device)
-        # DONE = DONE.to(self.device)
-        # ^ check why this casting is required
+        STATE = STATE.to(self.device)
+        ACTION = ACTION.to(self.device)
+        REWARD = REWARD.to(self.device)
+        STATE2 = STATE2.to(self.device)
+        DONE = DONE.to(self.device)
 
         self.optimizer.zero_grad()
         # ^ set gradients to zero (by default, pytorch accumulates gradients unless reset)
