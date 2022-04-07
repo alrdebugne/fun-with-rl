@@ -43,8 +43,6 @@ def save_progress(dir: Path, agent: DDQNAgent, rewards: list):
     except:
         pass
         # TODO: fix: rewards.pkl doesn't get created inside agent
-    with open(dir / Path("lr.pkl"), "wb") as f:
-        pickle.dump(agent.lr, f)
     with open(dir / Path("exploration_rate.pkl"), "wb") as f:
         pickle.dump(agent.exploration_rate, f)
 

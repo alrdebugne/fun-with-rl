@@ -86,8 +86,6 @@ class DDQNAgent:
                 self.memory_pointer = pickle.load(f)
             with open(self.save_dir / Path("memory_num_experiences.pkl"), "rb") as f:
                 self.memory_num_experiences = pickle.load(f)
-            with open(self.save_dir / Path("lr.pkl"), "rb") as f:
-                self.lr = pickle.load(f)
             with open(self.save_dir / Path("exploration_rate.pkl"), "rb") as f:
                 self.exploration_rate = pickle.load(f)
         else:
