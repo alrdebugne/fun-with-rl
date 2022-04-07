@@ -86,7 +86,10 @@ class DDQNAgent:
                 self.memory_pointer = pickle.load(f)
             with open(self.save_dir / Path("memory_num_experiences.pkl"), "rb") as f:
                 self.memory_num_experiences = pickle.load(f)
-            # TODO: also resume learning & exploration rates
+            with open(self.save_dir / Path("lr.pkl"), "rb") as f:
+                self.lr = pickle.load(f)
+            with open(self.save_dir / Path("exploration_rate.pkl"), "rb") as f:
+                self.exploration_rate = pickle.load(f)
         else:
             self.STATE_MEM = torch.zeros(max_memory_size, *self.state_space)
             self.STATE2_MEM = torch.zeros(max_memory_size, *self.state_space)
@@ -95,6 +98,7 @@ class DDQNAgent:
             self.DONE_MEM = torch.zeros(max_memory_size, 1)
             self.memory_pointer = 0  # pointer in memory buffer
             self.memory_num_experiences = 0  # number of experiences in memory
+            self.exploration_rate = exploration_max  # initialise
 
         # --- Learning parameters ---
         self.gamma = gamma
@@ -103,7 +107,6 @@ class DDQNAgent:
         self.exploration_max = exploration_max
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
-        self.exploration_rate = exploration_max  # initialise
 
     def remember(self, state, action, reward, state2, done) -> None:
         """Store experience tuples (S, A, R, S') in memory for experience replay"""
