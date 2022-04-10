@@ -18,9 +18,8 @@ class DDQNAgent:
     Main methods:
     - `remember`: save trajectories to buffer, to batch learn from them
     - `recall`: sample a batches of trajectories at random
-    - `act`: pick agent's next action, either by using its policy network, or at random
-    with rate `exploration_rate`
-    - `experience_replay`: TODO
+    - `act`: pick agent's next action, either by using its policy network, or through exploration
+    - `experience_replay`: sample transitions from memory buffer & update weights
     """
 
     def __init__(
@@ -216,3 +215,59 @@ class DDQNAgent:
         self.exploration_rate = max(
             self.exploration_rate * self.exploration_decay, self.exploration_min
         )
+
+    def play_episode(self, env, is_training: bool, *kwargs) -> float:
+        """
+        Plays one episode from start to finish in `env` and returns the associated reward.
+        If `is_training` is True, also updates weights through experience replay.
+
+        NOTE: `env` must be compatible with the agent's `observation_space` and `action_space`
+        attributes. `env` is left as an argument to allow the agent to learn on several levels at once.
+        """
+        
+        state = env.reset()
+        state = torch.Tensor([state])
+        reward_episode = 0
+        steps_episode = 0
+        done = False
+
+        while not done:
+            
+            action = self.act(state)
+            steps_episode += 1
+            state_next, reward, done, info = env.step(int(action[0]))
+            reward_episode += reward
+
+            # Format to pytorch tensors
+            state_next = torch.Tensor([state_next])
+            reward = torch.tensor([reward]).unsqueeze(0)
+            done = torch.tensor([done]).unsqueeze(0)
+
+            if is_training:
+                self.remember(state, action, reward, state_next, done)
+                self.experience_replay()
+        
+            state = state_next
+
+        env.close()
+
+        return reward_episode
+
+
+    def save(self, dir: Path):
+        """Saves memory buffer and network parameters"""
+
+        with open(dir / Path("memory_pointer.pkl"), "wb") as f:
+            pickle.dump(self.memory_pointer, f)
+        with open(dir / Path("memory_num_experiences.pkl"), "wb") as f:
+            pickle.dump(self.memory_num_experiences, f)
+        with open(dir / Path("exploration_rate.pkl"), "wb") as f:
+            pickle.dump(self.exploration_rate, f)
+
+        torch.save(self.primary_net.state_dict(), dir / Path("dq_primary.pt"))
+        torch.save(self.target_net.state_dict(), dir / Path("dq_target.pt"))
+        torch.save(self.STATE_MEM, dir / Path("STATE_MEM.pt"))
+        torch.save(self.ACTION_MEM, dir / Path("ACTION_MEM.pt"))
+        torch.save(self.REWARD_MEM, dir / Path("REWARD_MEM.pt"))
+        torch.save(self.STATE2_MEM, dir / Path("STATE2_MEM.pt"))
+        torch.save(self.DONE_MEM, dir / Path("DONE_MEM.pt"))
