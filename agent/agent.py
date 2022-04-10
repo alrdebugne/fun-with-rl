@@ -224,7 +224,7 @@ class DDQNAgent:
             self.exploration_rate * self.exploration_decay, self.exploration_min
         )
 
-    def play_episode(self, env, is_training: bool, *kwargs) -> float:
+    def play_episode(self, env, is_training: bool) -> Tuple[float, int]:
         """
         Plays one episode from start to finish in `env` and returns the associated reward.
         If `is_training` is True, also updates weights through experience replay.
@@ -262,7 +262,7 @@ class DDQNAgent:
 
         env.close()
 
-        return reward_episode
+        return reward_episode, steps_episode
 
     def save(self, dir: Path):
         """Saves memory buffer and network parameters"""
