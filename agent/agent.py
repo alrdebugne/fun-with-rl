@@ -105,18 +105,26 @@ class DDQNAgent:
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
 
+    def update_memory_pointer_and_count(self) -> None:
+        """
+        Updates index for memory pointer and number of experiences in memory.
+        Must be called _before_ each call to `remember`.
+        """
+        self.memory_pointer = (self.memory_pointer + 1) % self.max_memory_size
+        self.memory_num_experiences = min(
+            self.memory_num_experiences + 1, self.max_memory_size
+        )
+
     def remember(self, state, action, reward, state2, done) -> None:
-        """Store experience tuples (S, A, R, S') in memory for experience replay"""
+        """
+        Store experience tuples (S, A, R, S') in memory for experience replay.
+        Must call `update_memory_pointer_and_count` _before_ each call to `remember`.
+        """
         self.STATE_MEM[self.memory_pointer] = state.float()
         self.ACTION_MEM[self.memory_pointer] = action.float()
         self.REWARD_MEM[self.memory_pointer] = reward.float()
         self.STATE2_MEM[self.memory_pointer] = state2.float()
         self.DONE_MEM[self.memory_pointer] = done.float()
-        # Update pointer & queue size
-        self.memory_pointer = (self.memory_pointer + 1) % self.max_memory_size
-        self.memory_num_experiences = min(
-            self.memory_num_experiences + 1, self.max_memory_size
-        )
 
     def recall(self) -> Tuple:
         """Sample experience tuple (S, A, R, S') from memory buffer"""
@@ -244,8 +252,11 @@ class DDQNAgent:
             done = torch.tensor([done]).unsqueeze(0)
 
             if is_training:
+                self.update_memory_pointer_and_count()
                 self.remember(state, action, reward, state_next, done)
                 self.experience_replay()
+                # TODO: update methods `update_...` and `remember` s.t. index 0 isn't skipped
+                # at first iteration, while remaining compatible with MultiworldDDQNAgent.
 
             state = state_next
 
