@@ -224,35 +224,34 @@ class DDQNAgent:
         NOTE: `env` must be compatible with the agent's `observation_space` and `action_space`
         attributes. `env` is left as an argument to allow the agent to learn on several levels at once.
         """
-        
+
         state = env.reset()
-        state = torch.Tensor([state])
+        state = torch.Tensor(np.array([state]))
         reward_episode = 0
         steps_episode = 0
         done = False
 
         while not done:
-            
+
             action = self.act(state)
             steps_episode += 1
             state_next, reward, done, info = env.step(int(action[0]))
             reward_episode += reward
 
             # Format to pytorch tensors
-            state_next = torch.Tensor([state_next])
+            state_next = torch.Tensor(np.array([state_next]))
             reward = torch.tensor([reward]).unsqueeze(0)
             done = torch.tensor([done]).unsqueeze(0)
 
             if is_training:
                 self.remember(state, action, reward, state_next, done)
                 self.experience_replay()
-        
+
             state = state_next
 
         env.close()
 
         return reward_episode
-
 
     def save(self, dir: Path):
         """Saves memory buffer and network parameters"""

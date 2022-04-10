@@ -1,6 +1,7 @@
 """
 Run file
 TODO: add description
+TODO: update with latest methods incorporated into agent
 """
 
 import click
@@ -9,6 +10,7 @@ import pickle
 from tqdm import tqdm
 from pathlib import Path
 
+import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import gym_super_mario_bros
@@ -95,7 +97,7 @@ def train(lr: float, num_episodes: int, save_dir: str, pretrained: bool):
 
     for episode in tqdm(range(num_episodes)):
         state = env.reset()
-        state = torch.Tensor([state])
+        state = torch.Tensor(np.array([state]))
         reward_episode = 0
         steps_episode = 0
         done = False
@@ -108,7 +110,7 @@ def train(lr: float, num_episodes: int, save_dir: str, pretrained: bool):
             reward_episode += reward
 
             # Format to pytorch tensors
-            state_next = torch.Tensor([state_next])
+            state_next = torch.Tensor(np.array([state_next]))
             reward = torch.tensor([reward]).unsqueeze(0)
             done = torch.tensor([int(done)]).unsqueeze(0)
 
