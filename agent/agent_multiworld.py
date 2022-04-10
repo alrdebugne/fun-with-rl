@@ -67,4 +67,3 @@ class MultiworldDDQNAgent(DDQNAgent):
         self.memory_num_experiences = min(
             self.memory_num_experiences + 1, self.max_memory_size
         )
-
