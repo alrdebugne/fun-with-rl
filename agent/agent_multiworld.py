@@ -43,6 +43,17 @@ class MultiworldDDQNAgent(DDQNAgent):
                 f"Memory size {self.max_memory_size} cannot be divided in {n_envs} equal chunks. "
                 f"Setting memory size to {self.max_memory_size_per_env} per env instead."
             )
+    
+    # Getter
+    def get_env_index(self) -> int:
+        return self._env_index
+
+    # Setter
+    def set_env_index(self, val: int) -> None:
+        self._env_index = int(val)
+
+    # Property
+    env_index = property(get_env_index, set_env_index)
 
     def update_memory_pointer_and_count(self) -> None:
         """
@@ -60,7 +71,7 @@ class MultiworldDDQNAgent(DDQNAgent):
             self.memory_pointer_per_env[env_index] + 1
         ) % self.max_memory_size_per_env
         # Update global pointer, taking into account starting position
-        self.memory_pointer = (
+        self.memory_pointer = int(
             env_index * self.max_memory_size_per_env
             + self.memory_pointer_per_env[env_index]
         )

@@ -8,27 +8,33 @@ import click
 import logging
 import pickle
 from tqdm import tqdm
+from typing import Optional
 from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 import torch
 import gym_super_mario_bros
-from gym_super_mario_bros.actions import RIGHT_ONLY
+from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
 from nes_py.wrappers import JoypadSpace
 
 from agent import DDQNAgent
 from wrappers import wrappers
 
 
-def make_env(env):
+def make_env(env, actions: Optional[str]):
     """Simplify screen following original Atari paper"""
     env = wrappers.MaxAndSkipEnv(env)  # repeat action over four frames
     env = wrappers.ProcessFrame84(env)  # size to 84 * 84 and greyscale
     env = wrappers.ImageToPyTorch(env)  # convert to (C, H, W) for pytorch
     env = wrappers.BufferWrapper(env, 4)  # stack four frames in one 'input'
     env = wrappers.ScaledFloatFrame(env)  # normalise RGB values to [0, 1]
-    return JoypadSpace(env, RIGHT_ONLY)
+    actions = actions or RIGHT_ONLY
+    if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
+        e = "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, " \
+            f"but received {actions} instead."
+        raise ValueError(e)
+    return JoypadSpace(env, actions)
 
 
 def save_progress(dir: Path, agent: DDQNAgent, rewards: list):
