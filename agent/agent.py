@@ -30,7 +30,7 @@ class DDQNAgent:
         batch_size: int,
         gamma: float,
         lr: float,
-        dropout: float,
+        dropout: Optional[float],
         exploration_max: float,
         exploration_min: float,
         exploration_decay: float,
@@ -240,7 +240,6 @@ class DDQNAgent:
         done = False
 
         while not done:
-
             action = self.act(state)
             steps_episode += 1
             state_next, reward, done, info = env.step(int(action[0]))
@@ -259,8 +258,6 @@ class DDQNAgent:
                 # at first iteration, while remaining compatible with MultiworldDDQNAgent.
 
             state = state_next
-
-        env.close()
 
         return reward_episode, steps_episode
 
