@@ -43,7 +43,7 @@ class MultiworldDDQNAgent(DDQNAgent):
                 f"Memory size {self.max_memory_size} cannot be divided in {n_envs} equal chunks. "
                 f"Setting memory size to {self.max_memory_size_per_env} per env instead."
             )
-    
+
     # Getter
     def get_env_index(self) -> int:
         return self._env_index
@@ -61,8 +61,7 @@ class MultiworldDDQNAgent(DDQNAgent):
         a contiguous buffer of size `max_memory_size_per_env` for each env.
         Must be called _before_ each call to `remember`.
 
-        TODO: figure out how to pass env_index without copying large parts
-        of super().play_episde()?
+        TODO: set env_index inside class instead of outside (requires refactoring)
         """
         # Update position of pointer inside chunk dedicated to env
         env_index = self.env_index

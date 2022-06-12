@@ -97,10 +97,10 @@ class DDQNAgent:
             self.memory_num_experiences = 0  # number of experiences in memory
             self.exploration_rate = exploration_max  # initialise
 
-        # --- Learning parameters ---
+        # ~~~ Learning parameters ~~~
         self.gamma = gamma
         self.l1 = nn.SmoothL1Loss(beta=1.0).to(self.device)
-        # ^ Huber loss, i.e. quadratic if |y-y_hat| < beta, else L1
+        # ^ Huber loss, i.e. quadratic if |y - y_hat| < beta, else L1
         self.exploration_max = exploration_max
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay

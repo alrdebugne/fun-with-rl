@@ -31,8 +31,10 @@ def make_env(env, actions: Optional[str]):
     env = wrappers.ScaledFloatFrame(env)  # normalise RGB values to [0, 1]
     actions = actions or RIGHT_ONLY
     if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
-        e = "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, " \
+        e = (
+            "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, "
             f"but received {actions} instead."
+        )
         raise ValueError(e)
     return JoypadSpace(env, actions)
 
