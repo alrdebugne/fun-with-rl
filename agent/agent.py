@@ -2,7 +2,8 @@ import logging
 from pathlib import Path
 import pickle
 import random
-from typing import Optional, Tuple, Union
+import time
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -10,6 +11,9 @@ import torch
 import torch.nn as nn
 
 from .solver import DQNetwork
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("ddqn-agent")
 
 
 class DDQNAgent:
@@ -30,15 +34,15 @@ class DDQNAgent:
         batch_size: int,
         gamma: float,
         lr: float,
-        dropout: Optional[float],
+        dropout: float,
         exploration_max: float,
         exploration_min: float,
         exploration_decay: float,
-        save_dir: Optional[Union[Path, str]],
-        is_pretrained: bool,
+        save_dir: Path = Path("./data/tmp/"),
+        is_pretrained: bool = False,
     ):
         """ """
-        # --- Define layers for DDQN ---
+        # ~~~ Define layers for DDQN ~~~
         self.state_space = state_space
         self.action_space = action_space
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -69,7 +73,7 @@ class DDQNAgent:
         self.copy = 5000  # copy local weights to target network after `copy` steps
         self.step = 0  # initialise steps
 
-        # --- Create memory ---
+        # ~~~ Create memory ~~~
         # (for experience replay)
         self.max_memory_size = max_memory_size
         self.memory_sample_size = batch_size
@@ -264,6 +268,8 @@ class DDQNAgent:
     def save(self, dir: Path):
         """Saves memory buffer and network parameters"""
 
+        dir.mkdir(parents=True, exist_ok=True)
+
         with open(dir / Path("memory_pointer.pkl"), "wb") as f:
             pickle.dump(self.memory_pointer, f)
         with open(dir / Path("memory_num_experiences.pkl"), "wb") as f:
@@ -278,3 +284,57 @@ class DDQNAgent:
         torch.save(self.REWARD_MEM, dir / Path("REWARD_MEM.pt"))
         torch.save(self.STATE2_MEM, dir / Path("STATE2_MEM.pt"))
         torch.save(self.DONE_MEM, dir / Path("DONE_MEM.pt"))
+
+    def run(
+        self, env, num_episodes: int, save_step: int
+    ) -> Tuple[List[float], List[int]]:
+        """
+        Plays `num_episodes` games, saving progress every `save_step` steps.
+
+        Recommended calls wrap `env` to speed up learning, e.g.:
+
+        ```python
+        env = gym_super_mario_bros.make("SuperMarioBros-1-1-v3")
+        env = make_env(env)  # wrap
+        agent = DDQNAgent(...)
+        agent.run(env, num_episodes=10000, save_step=1000)
+        ```
+        """
+
+        if not isinstance(self.save_dir, Path):
+            e = f"Called method run(), but agent has invalid save dir: {self.save_dir}"
+            raise ValueError(e)
+
+        logger.info(
+            f"Starting training for {num_episodes} episodes with parameters: ... (TODO)"
+        )
+        start = time.time()
+
+        print_progress_step = 100
+        rewards_all = []
+        steps_all = []
+
+        for episode in range(num_episodes):
+            reward_episode, steps_episode = self.play_episode(env, is_training=True)
+            # ^ no point in calling .run() if not training
+            rewards_all.append(reward_episode)
+            steps_all.append(steps_episode)
+
+            if (episode > 0) & (episode % print_progress_step == 0):
+                logger.info(
+                    f"Reward after episode {episode}: {reward_episode:.2f} ({steps_episode} steps)"
+                )
+
+            if (save_step > 0) & (episode % save_step == 0):
+                logger.info(f"Saving progress at episode {episode}...")
+                self.save(dir=self.save_dir)
+                logger.info("Done.")
+
+        end = time.time()
+        logger.info(f"Run complete (runtime: {round(end - start):d} s)")
+        logger.info(f"Final reward: {reward_episode}")
+        logger.info("Saving final state...")
+        self.save(dir=self.save_dir)
+        logger.info("Done.")
+
+        return rewards_all, steps_all

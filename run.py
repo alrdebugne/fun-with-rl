@@ -1,7 +1,6 @@
 """
 Run file
-TODO: add description
-TODO: update with latest methods incorporated into agent
+TODO: delete because deprecated
 """
 
 import click
@@ -22,8 +21,11 @@ from agent import DDQNAgent
 from wrappers import wrappers
 
 
-def make_env(env, actions: Optional[str]):
-    """Simplify screen following original Atari paper"""
+def make_env(env, actions: Optional[str] = None):
+    """
+    Simplify screen following original Atari paper
+    TODO: move to wrappers.py (or somewhere else with wrappers.py)
+    """
     env = wrappers.MaxAndSkipEnv(env)  # repeat action over four frames
     env = wrappers.ProcessFrame84(env)  # size to 84 * 84 and greyscale
     env = wrappers.ImageToPyTorch(env)  # convert to (C, H, W) for pytorch
@@ -39,32 +41,6 @@ def make_env(env, actions: Optional[str]):
     return JoypadSpace(env, actions)
 
 
-def save_progress(dir: Path, agent: DDQNAgent, rewards: list):
-    """Saves network states and parameters to resume training"""
-    # TODO: move to method from agent?
-
-    with open(dir / Path("memory_pointer.pkl"), "wb") as f:
-        pickle.dump(agent.memory_pointer, f)
-    with open(dir / Path("memory_num_experiences.pkl"), "wb") as f:
-        pickle.dump(agent.memory_num_experiences, f)
-    try:
-        with open(dir / Path("rewards.pkl"), "wb") as f:
-            pickle.dump(rewards, f)
-    except:
-        pass
-        # TODO: fix: rewards.pkl doesn't get created inside agent
-    with open(dir / Path("exploration_rate.pkl"), "wb") as f:
-        pickle.dump(agent.exploration_rate, f)
-
-    torch.save(agent.primary_net.state_dict(), dir / Path("dq_primary.pt"))
-    torch.save(agent.target_net.state_dict(), dir / Path("dq_target.pt"))
-    torch.save(agent.STATE_MEM, dir / Path("STATE_MEM.pt"))
-    torch.save(agent.ACTION_MEM, dir / Path("ACTION_MEM.pt"))
-    torch.save(agent.REWARD_MEM, dir / Path("REWARD_MEM.pt"))
-    torch.save(agent.STATE2_MEM, dir / Path("STATE2_MEM.pt"))
-    torch.save(agent.DONE_MEM, dir / Path("DONE_MEM.pt"))
-
-
 @click.command()
 @click.option("--lr", default=0.002, help="Learning rate")
 @click.option("--num_episodes", default=10000, help="Number of learning episodes")
@@ -77,7 +53,6 @@ def save_progress(dir: Path, agent: DDQNAgent, rewards: list):
 def train(lr: float, num_episodes: int, save_dir: str, pretrained: bool):
     """
     Main run function to train agent
-    TODO: docstring
     """
 
     # Create simplified environment for Super Mario Bros
