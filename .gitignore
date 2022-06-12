@@ -1,7 +1,9 @@
 # Save states
 data/
+gym-videos/
 
 # Notebooks
+notebooks/
 *.ipynb
 
 # Caches

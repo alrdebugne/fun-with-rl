@@ -79,7 +79,7 @@ class DDQNAgent:
         self.memory_sample_size = batch_size
 
         if self.is_pretrained:
-            logging.info("Loading memory from previous runs...")
+            logger.info("Loading memory from previous runs...")
             self.STATE_MEM = torch.load(self.save_dir / Path("STATE_MEM.pt"))
             self.STATE2_MEM = torch.load(self.save_dir / Path("STATE2_MEM.pt"))
             self.ACTION_MEM = torch.load(self.save_dir / Path("ACTION_MEM.pt"))
