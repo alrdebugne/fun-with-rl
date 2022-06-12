@@ -78,7 +78,7 @@ class MultiworldDDQNAgent(DDQNAgent):
 
     def run(  # type: ignore[override]
         self,
-        envs,  # type: ignore[override]
+        envs,
         num_episodes: int,  # type: ignore[override]
         save_step: int,  # type: ignore[override]
         cycle_env_after: int,  # type: ignore[override]
