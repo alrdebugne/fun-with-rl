@@ -79,9 +79,9 @@ class MultiworldDDQNAgent(DDQNAgent):
     def run(  # type: ignore[override]
         self,
         envs,
-        num_episodes: int,  # type: ignore[override]
-        save_step: int,  # type: ignore[override]
-        cycle_env_after: int,  # type: ignore[override]
+        num_episodes: int,
+        save_step: int,
+        cycle_env_after: int,
     ) -> Tuple[Dict[int, List[float]], Dict[int, List[int]]]:
         """
         Multiworld version of DDQNAgent.run()
