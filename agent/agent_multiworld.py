@@ -129,11 +129,9 @@ class MultiworldDDQNAgent(DDQNAgent):
                 )
 
             if (episode > 0) & (episode % save_step == 0):
-                logger.info(
-                    f"[Env {env_index}] Saving progress at episode {episode}..."
-                )
+                logger.info(f"Saving progress at episode {episode}...")
                 self.save(dir=self.save_dir)
-                logger.info(f"[Env {env_index}] Done.")
+                logger.info(f"Done.")
 
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
