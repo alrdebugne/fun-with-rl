@@ -82,6 +82,7 @@ class MultiworldDDQNAgent(DDQNAgent):
         num_episodes: int,
         save_step: int,
         cycle_env_after: int,
+        print_progress_after: int = 50,
     ) -> Tuple[Dict[int, List[float]], Dict[int, List[int]]]:
         """
         Multiworld version of DDQNAgent.run()
@@ -108,7 +109,6 @@ class MultiworldDDQNAgent(DDQNAgent):
         )
         start = time.time()
 
-        print_progress_step = 1
         rewards_all_per_env: dict = {i: [] for i in range(len(envs))}
         steps_all_per_env: dict = {i: [] for i in range(len(envs))}
 
@@ -123,7 +123,7 @@ class MultiworldDDQNAgent(DDQNAgent):
             rewards_all_per_env[env_index].append(reward_episode)
             steps_all_per_env[env_index].append(steps_episode)
 
-            if (episode > 0) & (episode % print_progress_step == 0):
+            if (episode > 0) & (episode % print_progress_after == 0):
                 logger.info(
                     f"[Env {env_index}] Reward after episode {episode}: {reward_episode:.2f} ({steps_episode} steps)"
                 )
