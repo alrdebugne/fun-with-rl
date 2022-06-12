@@ -3,9 +3,13 @@ Wrappers used in tutorial
 Based on OpenAI baselines: https://github.com/openai/baselines/blob/master/baselines/common/atari_wrappers.py
 """
 import collections
-import numpy as np
-import gym
 import cv2
+import numpy as np
+from typing import Optional
+
+import gym
+from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
+from nes_py.wrappers import JoypadSpace
 
 
 class MaxAndSkipEnv(gym.Wrapper):
@@ -124,3 +128,23 @@ class BufferWrapper(gym.ObservationWrapper):
         self.buffer[:-1] = self.buffer[1:]  # shift old frames left
         self.buffer[-1] = observation  # add new frame
         return self.buffer
+
+
+def make_env(env, actions: Optional[str] = None):
+    """
+    Simplify screen following original Atari paper
+    TODO: move to wrappers.py (or somewhere else with wrappers.py)
+    """
+    env = MaxAndSkipEnv(env)  # repeat action over four frames
+    env = ProcessFrame84(env)  # size to 84 * 84 and greyscale
+    env = ImageToPyTorch(env)  # convert to (C, H, W) for pytorch
+    env = BufferWrapper(env, 4)  # stack four frames in one 'input'
+    env = ScaledFloatFrame(env)  # normalise RGB values to [0, 1]
+    actions = actions or RIGHT_ONLY
+    if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
+        e = (
+            "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, "
+            f"but received {actions} instead."
+        )
+        raise ValueError(e)
+    return JoypadSpace(env, actions)
