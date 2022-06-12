@@ -1,17 +1,15 @@
 import logging
-from pathlib import Path
-import pickle
-import random
-from typing import Optional, Tuple, Union
-
 import math
-import numpy as np
-import numpy.typing as npt
-import torch
-import torch.nn as nn
+from pathlib import Path
+import time
+from typing import Dict, List, Optional, Tuple
 
 from .agent import DDQNAgent
-from .solver import DQNetwork
+
+import logging
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger("ddqn-multiworld-agent")
 
 
 class MultiworldDDQNAgent(DDQNAgent):
@@ -66,9 +64,9 @@ class MultiworldDDQNAgent(DDQNAgent):
         # Update position of pointer inside chunk dedicated to env
         env_index = self.env_index
         # FIXME: ^ set outside agent in run loop...
-        self.memory_pointer_per_env[env_index] = (
-            self.memory_pointer_per_env[env_index] + 1
-        ) % self.max_memory_size_per_env
+        self.memory_pointer_per_env[env_index] = int(
+            (self.memory_pointer_per_env[env_index] + 1) % self.max_memory_size_per_env
+        )
         # Update global pointer, taking into account starting position
         self.memory_pointer = int(
             env_index * self.max_memory_size_per_env
@@ -77,3 +75,71 @@ class MultiworldDDQNAgent(DDQNAgent):
         self.memory_num_experiences = min(
             self.memory_num_experiences + 1, self.max_memory_size
         )
+
+    def run(  # type: ignore[override]
+        self,
+        envs,  # type: ignore[override]
+        num_episodes: int,  # type: ignore[override]
+        save_step: int,  # type: ignore[override]
+        cycle_env_after: int,  # type: ignore[override]
+    ) -> Tuple[Dict[int, List[float]], Dict[int, List[int]]]:
+        """
+        Multiworld version of DDQNAgent.run()
+
+        Again, it is recommended calls wrap `env` to speed up learning, e.g.:
+
+        ```python
+        envs = [
+            make_env(
+                gym_super_mario_bros.make(f"SuperMarioBros-{world}-{level}-v3")
+            ) for world in range(1, 3) for level in range(1, 5)
+        ]
+        agent = MultiworldDDQNAgent(...)
+        agent.run(envs, num_episodes=10000, save_step=1000)
+        ```
+        """
+
+        if not isinstance(self.save_dir, Path):
+            e = f"Called method run(), but agent has invalid save dir: {self.save_dir}"
+            raise ValueError(e)
+
+        logger.info(
+            f"Starting training for {num_episodes} episodes across {self.n_envs} environments with parameters: ... (TODO)"
+        )
+        start = time.time()
+
+        print_progress_step = 1
+        rewards_all_per_env: dict = {i: [] for i in range(len(envs))}
+        steps_all_per_env: dict = {i: [] for i in range(len(envs))}
+
+        for episode in range(num_episodes):
+            env_index = (episode // cycle_env_after) % self.n_envs
+            # ^ cycling through to the next environment after `cycle_env_after` episodes
+            env = envs[env_index]  # .reset() called in .play_episode()
+            self.env_index = env_index
+
+            reward_episode, steps_episode = self.play_episode(env, is_training=True)
+            # ^ no point in calling .run() if not training
+            rewards_all_per_env[env_index].append(reward_episode)
+            steps_all_per_env[env_index].append(steps_episode)
+
+            if (episode > 0) & (episode % print_progress_step == 0):
+                logger.info(
+                    f"[Env {env_index}] Reward after episode {episode}: {reward_episode:.2f} ({steps_episode} steps)"
+                )
+
+            if (episode > 0) & (episode % save_step == 0):
+                logger.info(
+                    f"[Env {env_index}] Saving progress at episode {episode}..."
+                )
+                self.save(dir=self.save_dir)
+                logger.info(f"[Env {env_index}] Done.")
+
+        end = time.time()
+        logger.info(f"Run complete (runtime: {round(end - start):d} s)")
+        logger.info(f"Final reward: {reward_episode}")
+        logger.info("Saving final state...")
+        self.save(dir=self.save_dir)
+        logger.info("Done.")
+
+        return rewards_all_per_env, steps_all_per_env

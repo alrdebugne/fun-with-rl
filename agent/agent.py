@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 import random
 import time
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -54,7 +54,7 @@ class DDQNAgent:
         if self.is_pretrained:
             if self.save_dir is None:
                 raise ValueError("`save_dir` must be specified for resuming training")
-            logging.info("Loading weights from previous runs...")
+            logger.info("Loading weights from previous runs...")
             # Load weights from previous iteration
             self.primary_net.load_state_dict(
                 torch.load(
