@@ -6,8 +6,6 @@ from typing import Dict, List, Optional, Tuple
 
 from .agent import DDQNAgent
 
-import logging
-
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ddqn-multiworld-agent")
 
@@ -41,6 +39,12 @@ class MultiworldDDQNAgent(DDQNAgent):
                 f"Memory size {self.max_memory_size} cannot be divided in {n_envs} equal chunks. "
                 f"Setting memory size to {self.max_memory_size_per_env} per env instead."
             )
+
+        if not self.is_pretrained:
+            # Need to initialise self.rewards and self.steps here because we index them
+            # by environment in MultiworldDDQNAgent
+            self.rewards: dict = {i: [] for i in range(n_envs)}  # initialise
+            self.steps: dict = {i: [] for i in range(n_envs)}  # initialise
 
     # Getter
     def get_env_index(self) -> int:
@@ -83,7 +87,7 @@ class MultiworldDDQNAgent(DDQNAgent):
         save_step: int,
         cycle_env_after: int,
         print_progress_after: int = 50,
-    ) -> Tuple[Dict[int, List[float]], Dict[int, List[int]]]:
+    ) -> None:
         """
         Multiworld version of DDQNAgent.run()
 
@@ -109,9 +113,6 @@ class MultiworldDDQNAgent(DDQNAgent):
         )
         start = time.time()
 
-        rewards_all_per_env: dict = {i: [] for i in range(len(envs))}
-        steps_all_per_env: dict = {i: [] for i in range(len(envs))}
-
         for episode in range(num_episodes):
             env_index = (episode // cycle_env_after) % self.n_envs
             # ^ cycling through to the next environment after `cycle_env_after` episodes
@@ -120,8 +121,8 @@ class MultiworldDDQNAgent(DDQNAgent):
 
             reward_episode, steps_episode = self.play_episode(env, is_training=True)
             # ^ no point in calling .run() if not training
-            rewards_all_per_env[env_index].append(reward_episode)
-            steps_all_per_env[env_index].append(steps_episode)
+            self.rewards[env_index].append(reward_episode)
+            self.steps[env_index].append(steps_episode)
 
             if (episode > 0) & (episode % print_progress_after == 0):
                 logger.info(
@@ -139,5 +140,3 @@ class MultiworldDDQNAgent(DDQNAgent):
         logger.info("Saving final state...")
         self.save(dir=self.save_dir)
         logger.info("Done.")
-
-        return rewards_all_per_env, steps_all_per_env

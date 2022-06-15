@@ -91,6 +91,10 @@ class DDQNAgent:
                 self.memory_num_experiences = pickle.load(f)
             with open(self.save_dir / Path("exploration_rate.pkl"), "rb") as f:
                 self.exploration_rate = pickle.load(f)
+            with open(self.save_dir / Path("rewards.pkl"), "rb") as f:
+                self.rewards = pickle.load(f)
+            with open(self.save_dir / Path("steps.pkl"), "rb") as f:
+                self.steps = pickle.load(f)
         else:
             self.STATE_MEM = torch.zeros(max_memory_size, *self.state_space)
             self.STATE2_MEM = torch.zeros(max_memory_size, *self.state_space)
@@ -100,6 +104,8 @@ class DDQNAgent:
             self.memory_pointer = 0  # pointer in memory buffer
             self.memory_num_experiences = 0  # number of experiences in memory
             self.exploration_rate = exploration_max  # initialise
+            self.rewards = []  # initialise
+            self.steps = []  # initialise
 
         # ~~~ Learning parameters ~~~
         self.gamma = gamma
@@ -276,6 +282,10 @@ class DDQNAgent:
             pickle.dump(self.memory_num_experiences, f)
         with open(dir / Path("exploration_rate.pkl"), "wb") as f:
             pickle.dump(self.exploration_rate, f)
+        with open(dir / Path("rewards.pkl"), "wb") as f:
+            pickle.dump(self.rewards, f)
+        with open(dir / Path("steps.pkl"), "wb") as f:
+            pickle.dump(self.steps, f)
 
         torch.save(self.primary_net.state_dict(), dir / Path("dq_primary.pt"))
         torch.save(self.target_net.state_dict(), dir / Path("dq_target.pt"))
@@ -286,8 +296,12 @@ class DDQNAgent:
         torch.save(self.DONE_MEM, dir / Path("DONE_MEM.pt"))
 
     def run(
-        self, env, num_episodes: int, save_step: int
-    ) -> Tuple[List[float], List[int]]:
+        self,
+        env,
+        num_episodes: int,
+        save_step: int,
+        print_progress_after: int = 50,
+    ) -> None:
         """
         Plays `num_episodes` games, saving progress every `save_step` steps.
 
@@ -310,22 +324,18 @@ class DDQNAgent:
         )
         start = time.time()
 
-        print_progress_step = 100
-        rewards_all = []
-        steps_all = []
-
         for episode in range(num_episodes):
             reward_episode, steps_episode = self.play_episode(env, is_training=True)
             # ^ no point in calling .run() if not training
-            rewards_all.append(reward_episode)
-            steps_all.append(steps_episode)
+            self.rewards.append(reward_episode)
+            self.steps.append(steps_episode)
 
-            if (episode > 0) & (episode % print_progress_step == 0):
+            if (episode > 0) & (episode % print_progress_after == 0):
                 logger.info(
                     f"Reward after episode {episode}: {reward_episode:.2f} ({steps_episode} steps)"
                 )
 
-            if (save_step > 0) & (episode % save_step == 0):
+            if (episode > 0) & (episode % save_step == 0):
                 logger.info(f"Saving progress at episode {episode}...")
                 self.save(dir=self.save_dir)
                 logger.info("Done.")
@@ -336,5 +346,3 @@ class DDQNAgent:
         logger.info("Saving final state...")
         self.save(dir=self.save_dir)
         logger.info("Done.")
-
-        return rewards_all, steps_all
