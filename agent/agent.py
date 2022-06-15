@@ -22,7 +22,7 @@ class DDQNAgent:
     Main methods:
     - `remember`: save trajectories to buffer, to batch learn from them
     - `recall`: sample a batches of trajectories at random
-    - `act`: pick agent's next action, either by using its policy network, or through exploration
+    - `act`: pick agent's next action, either by maximising its Q-function, or through exploration
     - `experience_replay`: sample transitions from memory buffer & update weights
     """
 
@@ -48,7 +48,10 @@ class DDQNAgent:
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.save_dir = save_dir
         self.is_pretrained = is_pretrained
-        # Since this is Double Q-Learning, we instantiate two networks: one local for policies, one target for XX
+        # We instantiate two networks for double-Q learning:
+        # - Primary, for selecting best actions
+        # - Target, for evaluating the action
+        # Primary weights are copied onto target every `self.copy` steps
         self.primary_net = DQNetwork(state_space, action_space, dropout).to(self.device)
         self.target_net = DQNetwork(state_space, action_space, dropout).to(self.device)
         if self.is_pretrained:
