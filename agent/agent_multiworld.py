@@ -30,6 +30,9 @@ class MultiworldDDQNAgent(DDQNAgent):
     ):
         super(MultiworldDDQNAgent, self).__init__(*super_args, **super_kwargs)
         self.n_envs = n_envs
+        # TODO: need to store the mapping from environment indices to names
+        # (Hhint: use env.unwrapped.spec.id to retrieve the env name)
+
         # Create helper memory pointers to apportion the memory in equal chunks for every env
         self.memory_pointer_per_env = {i: 0 for i in range(n_envs)}
         self.max_memory_size_per_env = self.max_memory_size / n_envs
