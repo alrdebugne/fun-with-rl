@@ -14,7 +14,6 @@ from torch.distributions import Categorical
 from .solver import DQNetwork
 from utils import render_in_jupyter
 
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("vpg-agent")
 
 
@@ -106,6 +105,8 @@ class VPGAgent:
         rewards = []
         steps_episode = 0
         done = False
+
+        # Render?
         if render:
             # Initialise variables required for rendering
             img = None
@@ -113,7 +114,6 @@ class VPGAgent:
 
         start = time.time()
         while not done:
-            # Render?
             if render:
                 img = render_in_jupyter(env, img, info=f"Current reward: {reward}")
 
@@ -133,12 +133,12 @@ class VPGAgent:
         end = time.time()
 
         logger.debug(
-            f"\tComputed trajectory in {int(end - start):.2f} ({steps_episode} steps)"
+            f"--- Computed trajectory in {int(end - start):.2f} s (reward: {sum(rewards)}, steps: {steps_episode})"
         )
 
         return observations, actions, rewards, steps_episode
 
-    def play_one_epoch(
+    def play_epoch(
         self, env, steps_per_epoch: int, render: bool = False
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor], torch.Tensor]:
         """
@@ -146,8 +146,6 @@ class VPGAgent:
         `steps_per_epoch` is assembled.
         Returns observations
         """
-
-        raise NotImplementedError("This is where testing has stopped")
 
         steps = 0
         observations = []
@@ -162,12 +160,14 @@ class VPGAgent:
                 has_rendered_epoch = True
             else:
                 render_episode = False
+
             (
                 obs_episode,
                 actions_episode,
                 rewards_episode,
                 steps_episode,
             ) = self.play_episode(env, render=render_episode)
+
             observations.extend(obs_episode)
             actions.extend(actions_episode)
             # Compute weights from rewards
@@ -277,7 +277,7 @@ class VPGAgent:
 
         for epoch in range(num_epochs):
             # Sample observations and rewards from one epoch
-            batch_observations, batch_actions, batch_weights = self.play_one_epoch(
+            batch_observations, batch_actions, batch_weights = self.play_epoch(
                 env, batch_size
             )
             # self.update_exploration_rate()  # TODO
