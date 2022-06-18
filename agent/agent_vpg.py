@@ -94,8 +94,14 @@ class VPGAgent:
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[np.float64], int]:
         """
         Plays one episode from start to finish in `env` (i.e. one trajectory).
-        Returns the associated onservations, actions & rewards (for gradient descent)
-        & steps (for logging).
+
+        Returns:
+            observations: list of states observed at t
+            actions: list of actions taken at t
+            rewards: list of rewards earned at time t
+            steps: length of episode (for logging)
+
+        Note the returns have different types than `play_epoch`.
         """
 
         state = env.reset()
@@ -132,7 +138,7 @@ class VPGAgent:
 
         end = time.time()
 
-        logger.debug(
+        logger.info(
             f"--- Computed trajectory in {int(end - start):.2f} s (reward: {sum(rewards)}, steps: {steps_episode})"
         )
 
@@ -140,17 +146,25 @@ class VPGAgent:
 
     def play_epoch(
         self, env, steps_per_epoch: int, render: bool = False
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor], torch.Tensor]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
         """
-        Samples trajectories inside env using the latest policy until a batch of size at least
-        `steps_per_epoch` is assembled.
-        Returns observations
+        Samples trajectories inside `env` on-policy until a batch of size at least `steps_per_epoch` is assembled.
+
+        Returns:
+            observations: tensor of states observed at t (size (num_steps, **`state_space`))
+            actions: tensor of actions taken at t (size (num_steps))
+            weights: tensor of weights by which to multiply the log(policy) terms (size (num_steps));
+                     cf. self.compute_weights() for the formulation
+            average return: average return
+
+        Note the returns have different types than `play_episode`.
         """
 
         steps = 0
         observations = []
         actions = []
         weights = []
+        rewards = []
 
         has_rendered_epoch = False
 
@@ -174,8 +188,19 @@ class VPGAgent:
             weights_episode = self.compute_weights(rewards_episode)
             weights.extend(weights_episode)
             steps += steps_episode
+            rewards.append(np.sum(rewards_episode))
 
-        return observations, actions, weights
+        # Cast observations, actions and weights to tensors for optimisation steps
+        # observations: from list of n tensors (c, h, w) to tensor batch (n, c, h, w)
+        # actions: from list of n tensors (1) to tensor batch (n)
+        # weights: from list of n floats (1) to tensor batch (n)
+        observations = torch.cat(observations)
+        actions = torch.cat(actions).squeeze()
+        weights = torch.tensor(weights)
+        # Compute average return for epoch
+        average_return = np.mean(rewards)
+
+        return observations, actions, weights, average_return
 
     def compute_weights(self, rewards_trajectory: List[np.float64]) -> Any:
         """
@@ -203,10 +228,13 @@ class VPGAgent:
         self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
     ) -> Any:
         """
-        Computes 'loss' for a batch of states.
+        Computes 'loss' for a batch of observations.
 
-        N.B.: not really a 'loss' in the sense of performance metric, but an objective
-        that we train the policy network to maximise.
+        Note this is not really a 'loss' in the sense of performance metric, but an objective
+        that we train the policy network to maximise (because it has the same gradient
+        as the expected return). Minimising the loss does not guarantee improving the
+        expected returns, so returns, not losses, should be tracked for monitoring
+        performance.
 
         Params:
             states: list of observations
@@ -214,6 +242,17 @@ class VPGAgent:
             weights: weights by which to multiply the log(policy) terms; exact formulation
                      varies, but is returned by self.compute_weights()
         """
+
+        # Check dimensions of states, actions and weights are as expected
+        if len(weights.size()) != 1:
+            e = f"""
+            Expected `weights` to be tensor with single dimension (n), but got tensor with
+            size {weights.size()} instead. Passing `weights` with >1 dimension can lead to
+            the wrong behaviour when calling `log_prob()`.
+            HINT: check dimensions and call .squeeze() if required."
+            """
+            raise ValueError(e)
+
         m = Categorical(logits=self.policy(states))  # m for multinomial
         log_policy = m.log_prob(actions)
         # Breaking the steps down for torch newbies:
@@ -243,12 +282,13 @@ class VPGAgent:
         self,
         env,
         num_epochs: int,
-        batch_size: int,
+        steps_per_epoch: int,
         save_after_epochs: int,
-        print_progress_after: int = 50,
-    ) -> None:
+        print_progress_after: int = 10,
+        render: bool = False,
+    ) -> Tuple[List[int], List[float], List[float]]:
         """
-        Updates policy over the course of `num_epoch` epochs of size `batch_size`,
+        Updates policy over the course of `num_epoch` epochs of size `steps_per_epoch`,
         saving progress every `save_after_epochs` steps.
 
         Recommended calls wrap `env` to speed up learning, e.g.:
@@ -270,6 +310,10 @@ class VPGAgent:
             e = f"Called method run(), but agent has invalid save dir: {self.save_dir}"
             raise ValueError(e)
 
+        steps: List[int] = []
+        average_returns = []
+        losses = []
+
         logger.info(
             f"Starting training for {num_epochs} epochs with parameters: ... (TODO)"
         )
@@ -277,9 +321,12 @@ class VPGAgent:
 
         for epoch in range(num_epochs):
             # Sample observations and rewards from one epoch
-            batch_observations, batch_actions, batch_weights = self.play_epoch(
-                env, batch_size
-            )
+            (
+                batch_observations,
+                batch_actions,
+                batch_weights,
+                average_return,
+            ) = self.play_epoch(env, steps_per_epoch, render)
             # self.update_exploration_rate()  # TODO
             # Perform policy upgrade step
             self.optimizer.zero_grad()
@@ -288,16 +335,26 @@ class VPGAgent:
             self.optimizer.step()
 
             if (epoch > 0) & (epoch % print_progress_after == 0):
-                logger.info(f"Loss after epoch {epoch}: {loss:.2f}")
+                logger.info(
+                    f"({epoch}) Epoch complete. Average return: {average_return:.2f} "
+                    f"(loss: {loss:.2}"
+                )
 
             if (epoch > 0) & (epoch % save_after_epochs == 0):
-                logger.info(f"Saving progress at episode {epoch}...")
+                logger.info(f"({epoch}) Saving progress at epoch {epoch}...")
                 self.save(dir=self.save_dir)
                 logger.info("Done.")
 
+            # Log steps, returns and losses to inspect learning
+            steps.append(len(steps))
+            average_returns.append(average_return)
+            losses.append(loss.item())
+
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
-        logger.info(f"Final loss: {loss}")
+        logger.info(f"Final average return: {average_return:.2f}")
         logger.info("Saving final state...")
         self.save(dir=self.save_dir)
         logger.info("Done.")
+
+        return steps, average_returns, losses
