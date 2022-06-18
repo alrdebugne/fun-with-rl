@@ -1,6 +1,7 @@
-# Save states
+# Save states & logs
 data/
 gym-videos/
+logs/
 
 # Notebooks
 notebooks/
