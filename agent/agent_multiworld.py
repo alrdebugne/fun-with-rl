@@ -2,9 +2,8 @@ import logging
 import math
 from pathlib import Path
 import time
-from typing import Dict, List, Optional, Tuple
 
-from .agent import DDQNAgent
+from agent import DDQNAgent
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ddqn-multiworld-agent")
@@ -60,7 +59,7 @@ class MultiworldDDQNAgent(DDQNAgent):
     # Property
     env_index = property(get_env_index, set_env_index)
 
-    def update_memory_pointer_and_count(self) -> None:
+    def _update_memory_pointer_and_count(self) -> None:
         """
         Updates index for memory pointer and number of experiences in memory, apportioning
         a contiguous buffer of size `max_memory_size_per_env` for each env.
@@ -134,12 +133,12 @@ class MultiworldDDQNAgent(DDQNAgent):
 
             if (episode > 0) & (episode % save_step == 0):
                 logger.info(f"Saving progress at episode {episode}...")
-                self.save(dir=self.save_dir)
+                self._save(dir=self.save_dir)
                 logger.info(f"Done.")
 
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
         logger.info(f"Final reward: {reward_episode}")
         logger.info("Saving final state...")
-        self.save(dir=self.save_dir)
+        self._save(dir=self.save_dir)
         logger.info("Done.")

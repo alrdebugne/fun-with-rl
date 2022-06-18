@@ -61,7 +61,7 @@ def test_update_memory_pointer_and_count(
         _agent.env_index = env_index
         for _ in range(num_steps_per_episode):
             steps += 1
-            _agent.update_memory_pointer_and_count()
+            _agent._update_memory_pointer_and_count()
             res.append(_agent.memory_pointer)
 
     assert res == exp, f"Expected {exp}, but received {res}"
