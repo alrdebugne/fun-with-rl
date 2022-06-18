@@ -8,7 +8,7 @@ authors = ["Antoine LR Debugne <alrdebugne@gmail.com>"]
 python = "^3.9"
 torch = "^1.10.2"
 numpy = "^1.22.2"
-gym = "^0.22.0"
+gym = {extras = ["accept-rom-license"], version = "^0.24.1"}
 gym-super-mario-bros = "^7.3.2"
 matplotlib = "^3.5.1"
 ipykernel = "^6.9.1"
@@ -19,6 +19,7 @@ jupyterlab = "^3.3.4"
 pytest = "^7.1.2"
 pre-commit = "^2.19.0"
 pygame = "^2.1.2"
+ale-py = "^0.7.5"
 
 [tool.pytest.ini_options]
 pythonpath = [

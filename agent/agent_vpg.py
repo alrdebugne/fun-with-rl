@@ -33,6 +33,7 @@ class VPGAgent:
         self,
         state_space: npt.NDArray[np.float64],
         action_space: int,
+        gamma: float,
         lr: float,  # alpha for gradient ascent
         dropout: float,
         exploration_max: float,
@@ -62,6 +63,7 @@ class VPGAgent:
                     map_location=torch.device(self.device),
                 )
             )
+        self.gamma = gamma
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
         self.step = 0  # initialise steps
 
@@ -69,7 +71,7 @@ class VPGAgent:
         self.exploration_max = exploration_max
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
-        self.exploration_rate = exploration_min
+        self.exploration_rate = exploration_max
         # ^ temporary, before implementing update_exploration_rate
 
     def play_episode(
@@ -234,7 +236,7 @@ class VPGAgent:
                 batch_weights,
                 average_return,
             ) = self.play_epoch(env, steps_per_epoch, render)
-            self._update_exploration_rate()
+            self._update_exploration_rate(num_steps=len(batch_weights))
             # Perform policy upgrade step
             self.optimizer.zero_grad()
             loss = self._compute_loss(batch_observations, batch_actions, batch_weights)
@@ -253,7 +255,7 @@ class VPGAgent:
                 logger.info("Done.")
 
             # Log steps, returns and losses to inspect learning
-            steps.append(len(steps))
+            steps.append(len(batch_observations))
             average_returns.append(average_return)
             losses.append(loss.item())
 
@@ -286,7 +288,7 @@ class VPGAgent:
     def _compute_weights(self, rewards_trajectory: List[np.float64]) -> Any:
         """
         Computes weights for every stage transition t in the trajectory.
-        In the simplest formulations, weights are the rewards-to-go for the trajector.
+        In the simplest formulations, weights are the (discounted) rewards-to-go.
         More complex formulations are found in the children classes of VPGActor.
         """
 
@@ -298,7 +300,7 @@ class VPGAgent:
         n = len(rewards_trajectory)
         weights_trajectory = np.zeros_like(rewards_trajectory)
         for i in reversed(range(n)):
-            weights_trajectory[i] = rewards_trajectory[i] + (
+            weights_trajectory[i] = rewards_trajectory[i] + self.gamma * (
                 weights_trajectory[i + 1] if i + 1 < n else 0
             )
             # ^ faster than looping forward with weights[i] = rewards[i:].sum()
@@ -332,7 +334,7 @@ class VPGAgent:
             the wrong behaviour when calling `log_prob()`.
             HINT: check dimensions and call .squeeze() if required."
             """
-            raise ValueError(e)
+            raise RuntimeError(e)
 
         m = Categorical(logits=self.policy(states))  # m for multinomial
         log_policy = m.log_prob(actions)
@@ -349,9 +351,12 @@ class VPGAgent:
         #   the total value of trajectory (the greater, the better), not a loss.
         return -(log_policy * weights).mean()
 
-    def _update_exploration_rate(self) -> None:
+    def _update_exploration_rate(self, num_steps: int) -> None:
         """Updates agent's appetite for exploration"""
-        pass
+        self.exploration_rate = max(
+            self.exploration_min,
+            self.exploration_rate * self.exploration_decay**num_steps,
+        )
 
     def _save(self, dir: Path) -> None:
         """Saves memory buffer and network parameters"""
