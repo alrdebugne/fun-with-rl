@@ -72,23 +72,6 @@ class VPGAgent:
         self.exploration_rate = exploration_min
         # ^ temporary, before implementing update_exploration_rate
 
-    def act(self, state) -> torch.Tensor:
-        """
-        Epsilon-greedy policy: output next action given `state`, either by:
-        - exploring randomly, with proba. `self.exploration_rate`
-        - picking best action from policy
-        """
-        self.step += 1
-        if random.random() < self.exploration_rate:
-            return torch.tensor([[random.randrange(self.action_space)]])
-        return (
-            torch.argmax(self.policy(state.to(self.device)))
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .cpu()
-            # ^ calling unsqueeze to return 'nested' tensor
-        )
-
     def play_episode(
         self, env, render: bool = False
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[np.float64], int]:
@@ -126,7 +109,7 @@ class VPGAgent:
             # Store current state
             observations.append(state)
             # Pick next action and step environment forward
-            action = self.act(state)
+            action = self._act(state)
             actions.append(action)
             steps_episode += 1
             state_next, reward, done, info = env.step(int(action[0]))
@@ -185,7 +168,7 @@ class VPGAgent:
             observations.extend(obs_episode)
             actions.extend(actions_episode)
             # Compute weights from rewards
-            weights_episode = self.compute_weights(rewards_episode)
+            weights_episode = self._compute_weights(rewards_episode)
             weights.extend(weights_episode)
             steps += steps_episode
             rewards.append(np.sum(rewards_episode))
@@ -201,82 +184,6 @@ class VPGAgent:
         average_return = np.mean(rewards)
 
         return observations, actions, weights, average_return
-
-    def compute_weights(self, rewards_trajectory: List[np.float64]) -> Any:
-        """
-        Computes weights for every stage transition t in the trajectory.
-        In the simplest formulations, weights are the rewards-to-go for the trajector.
-        More complex formulations are found in the children classes of VPGActor.
-        """
-
-        # `rewards_trajectory` contains the reward r(t) collected at every time step
-        # We want to compute the sum of (undiscounted) rewards that each action enabled,
-        # not including past rewards; i.e. we want
-        #   w(t) = sum_{t'=t}^{T} r(t')
-
-        n = len(rewards_trajectory)
-        weights_trajectory = np.zeros_like(rewards_trajectory)
-        for i in reversed(range(n)):
-            weights_trajectory[i] = rewards_trajectory[i] + (
-                weights_trajectory[i + 1] if i + 1 < n else 0
-            )
-            # ^ faster than looping forward with weights[i] = rewards[i:].sum()
-
-        return weights_trajectory
-
-    def compute_loss(
-        self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
-    ) -> Any:
-        """
-        Computes 'loss' for a batch of observations.
-
-        Note this is not really a 'loss' in the sense of performance metric, but an objective
-        that we train the policy network to maximise (because it has the same gradient
-        as the expected return). Minimising the loss does not guarantee improving the
-        expected returns, so returns, not losses, should be tracked for monitoring
-        performance.
-
-        Params:
-            states: list of observations
-            actions: list of actions taken (their index)
-            weights: weights by which to multiply the log(policy) terms; exact formulation
-                     varies, but is returned by self.compute_weights()
-        """
-
-        # Check dimensions of states, actions and weights are as expected
-        if len(weights.size()) != 1:
-            e = f"""
-            Expected `weights` to be tensor with single dimension (n), but got tensor with
-            size {weights.size()} instead. Passing `weights` with >1 dimension can lead to
-            the wrong behaviour when calling `log_prob()`.
-            HINT: check dimensions and call .squeeze() if required."
-            """
-            raise ValueError(e)
-
-        m = Categorical(logits=self.policy(states))  # m for multinomial
-        log_policy = m.log_prob(actions)
-        # Breaking the steps down for torch newbies:
-        # - `policy` returns the logits over the action space for a given state.
-        #    For a single state, `policy` returns a tensor of size (`self.action_space`).
-        #    For a N states, `policy` returns a tensor of size (N, `self.action_space`).
-        # - torch.distribution.Categorical converts logits to a (multinomial) distribution object.
-        #   This object has useful methods, such as .log_prob(). Its size is that of the logits.
-        # - Calling .log_prob(actions) evaluates log( policy(a|s) ) for every pair (a, s)
-        #   in (actions, states).
-        # - The last step is to weigh the logs by the weights (e.g. rewards-to-go, advantage), then
-        #   compute the batch average loss with .mean(). We add a minus sign because we're computing
-        #   the total value of trajectory (the greater, the better), not a loss.
-        return -(log_policy * weights).mean()
-
-    def save(self, dir: Path) -> None:
-        """Saves memory buffer and network parameters"""
-
-        dir.mkdir(parents=True, exist_ok=True)
-
-        # Save rewards accumulated at each epoch
-        # with open(dir / Path("rewards.pkl"), "wb") as f:
-        #     pickle.dump(self.rewards, f)
-        torch.save(self.policy.state_dict(), dir / Path("vpg_gae.pt"))
 
     def run(
         self,
@@ -327,10 +234,10 @@ class VPGAgent:
                 batch_weights,
                 average_return,
             ) = self.play_epoch(env, steps_per_epoch, render)
-            # self.update_exploration_rate()  # TODO
+            self._update_exploration_rate()
             # Perform policy upgrade step
             self.optimizer.zero_grad()
-            loss = self.compute_loss(batch_observations, batch_actions, batch_weights)
+            loss = self._compute_loss(batch_observations, batch_actions, batch_weights)
             loss.backward()
             self.optimizer.step()
 
@@ -342,7 +249,7 @@ class VPGAgent:
 
             if (epoch > 0) & (epoch % save_after_epochs == 0):
                 logger.info(f"({epoch}) Saving progress at epoch {epoch}...")
-                self.save(dir=self.save_dir)
+                self._save(dir=self.save_dir)
                 logger.info("Done.")
 
             # Log steps, returns and losses to inspect learning
@@ -354,7 +261,104 @@ class VPGAgent:
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
         logger.info(f"Final average return: {average_return:.2f}")
         logger.info("Saving final state...")
-        self.save(dir=self.save_dir)
+        self._save(dir=self.save_dir)
         logger.info("Done.")
 
         return steps, average_returns, losses
+
+    def _act(self, state) -> torch.Tensor:
+        """
+        Epsilon-greedy policy: output next action given `state`, either by:
+        - exploring randomly, with proba. `self.exploration_rate`
+        - picking best action from policy
+        """
+        self.step += 1
+        if random.random() < self.exploration_rate:
+            return torch.tensor([[random.randrange(self.action_space)]])
+        return (
+            torch.argmax(self.policy(state.to(self.device)))
+            .unsqueeze(0)
+            .unsqueeze(0)
+            .cpu()
+            # ^ calling unsqueeze to return 'nested' tensor
+        )
+
+    def _compute_weights(self, rewards_trajectory: List[np.float64]) -> Any:
+        """
+        Computes weights for every stage transition t in the trajectory.
+        In the simplest formulations, weights are the rewards-to-go for the trajector.
+        More complex formulations are found in the children classes of VPGActor.
+        """
+
+        # `rewards_trajectory` contains the reward r(t) collected at every time step
+        # We want to compute the sum of (undiscounted) rewards that each action enabled,
+        # not including past rewards; i.e. we want
+        #   w(t) = sum_{t'=t}^{T} r(t')
+
+        n = len(rewards_trajectory)
+        weights_trajectory = np.zeros_like(rewards_trajectory)
+        for i in reversed(range(n)):
+            weights_trajectory[i] = rewards_trajectory[i] + (
+                weights_trajectory[i + 1] if i + 1 < n else 0
+            )
+            # ^ faster than looping forward with weights[i] = rewards[i:].sum()
+
+        return weights_trajectory
+
+    def _compute_loss(
+        self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
+    ) -> Any:
+        """
+        Computes 'loss' for a batch of observations.
+
+        Note this is not really a 'loss' in the sense of performance metric, but an objective
+        that we train the policy network to maximise (because it has the same gradient
+        as the expected return). Minimising the loss does not guarantee improving the
+        expected returns, so returns, not losses, should be tracked for monitoring
+        performance.
+
+        Params:
+            states: list of observations
+            actions: list of actions taken (their index)
+            weights: weights by which to multiply the log(policy) terms; exact formulation
+                     varies, but is returned by self.compute_weights()
+        """
+
+        # Check dimensions of states, actions and weights are as expected
+        if len(weights.size()) != 1:
+            e = f"""
+            Expected `weights` to be tensor with single dimension (n), but got tensor with
+            size {weights.size()} instead. Passing `weights` with >1 dimension can lead to
+            the wrong behaviour when calling `log_prob()`.
+            HINT: check dimensions and call .squeeze() if required."
+            """
+            raise ValueError(e)
+
+        m = Categorical(logits=self.policy(states))  # m for multinomial
+        log_policy = m.log_prob(actions)
+        # Breaking the steps down for torch newbies:
+        # - `policy` returns the logits over the action space for a given state.
+        #    For a single state, `policy` returns a tensor of size (`self.action_space`).
+        #    For a N states, `policy` returns a tensor of size (N, `self.action_space`).
+        # - torch.distribution.Categorical converts logits to a (multinomial) distribution object.
+        #   This object has useful methods, such as .log_prob(). Its size is that of the logits.
+        # - Calling .log_prob(actions) evaluates log( policy(a|s) ) for every pair (a, s)
+        #   in (actions, states).
+        # - The last step is to weigh the logs by the weights (e.g. rewards-to-go, advantage), then
+        #   compute the batch average loss with .mean(). We add a minus sign because we're computing
+        #   the total value of trajectory (the greater, the better), not a loss.
+        return -(log_policy * weights).mean()
+
+    def _update_exploration_rate(self) -> None:
+        """Updates agent's appetite for exploration"""
+        pass
+
+    def _save(self, dir: Path) -> None:
+        """Saves memory buffer and network parameters"""
+
+        dir.mkdir(parents=True, exist_ok=True)
+
+        # Save rewards accumulated at each epoch
+        # with open(dir / Path("rewards.pkl"), "wb") as f:
+        #     pickle.dump(self.rewards, f)
+        torch.save(self.policy.state_dict(), dir / Path("vpg_gae.pt"))
