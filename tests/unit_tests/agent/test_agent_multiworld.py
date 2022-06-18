@@ -22,65 +22,18 @@ agent_default_kwargs = {
 
 @pytest.mark.parametrize(
     "n_envs, max_memory_size, num_episodes, num_episodes_per_cycle, num_steps_per_episode, exp",
+    # fmt: off
     [
-        (
-            4,
-            20,
-            4,
-            1,
-            5,
-            [1, 2, 3, 4, 0, 6, 7, 8, 9, 5, 11, 12, 13, 14, 10, 16, 17, 18, 19, 15],
-        ),
+        (4, 20, 4, 1, 5, [1, 2, 3, 4, 0, 6, 7, 8, 9, 5, 11, 12, 13, 14, 10, 16, 17, 18, 19, 15]),
         # ^ 4 environments, one playthrough each, just fits in memory
         # Note how the first index for each cycle is skipped: commented in DDQNAgent.play_episode
-        (
-            4,
-            20,
-            4,
-            1,
-            7,
-            [
-                1,
-                2,
-                3,
-                4,
-                0,
-                1,
-                2,
-                6,
-                7,
-                8,
-                9,
-                5,
-                6,
-                7,
-                11,
-                12,
-                13,
-                14,
-                10,
-                11,
-                12,
-                16,
-                17,
-                18,
-                19,
-                15,
-                16,
-                17,
-            ],
-        ),
+        (4, 20, 4, 1, 7, [1, 2, 3, 4, 0, 1, 2, 6, 7, 8, 9, 5, 6, 7, 11, 12, 13, 14, 10, 11, 12, 16, 17, 18, 19, 15, 16, 17]),
         (8, 24, 8, 1, 1, [1, 4, 7, 10, 13, 16, 19, 22]),
         (8, 24, 8, 1, 2, [1, 2, 4, 5, 7, 8, 10, 11, 13, 14, 16, 17, 19, 20, 22, 23]),
-        (
-            16,
-            32000,
-            4,
-            1,
-            3,
-            [1, 2, 3, 2001, 2002, 2003, 4001, 4002, 4003, 6001, 6002, 6003],
+        (16, 32000, 4, 1, 3, [1, 2, 3, 2001, 2002, 2003, 4001, 4002, 4003, 6001, 6002, 6003],
         ),
     ],
+    # fmt: on
 )
 def test_update_memory_pointer_and_count(
     n_envs,
@@ -98,7 +51,7 @@ def test_update_memory_pointer_and_count(
     _kwargs = deepcopy(agent_default_kwargs)
     _kwargs["n_envs"] = n_envs
     _kwargs["max_memory_size"] = max_memory_size
-    _agent = MultiworldDDQNAgent(**_kwargs)
+    _agent = MultiworldDDQNAgent(**_kwargs)  # type: ignore
 
     # Fake playing through episode, storing the memory pointer at each step
     res = []
