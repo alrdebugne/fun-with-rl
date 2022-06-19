@@ -2,7 +2,7 @@
 from copy import deepcopy
 import pytest
 
-from agent import MultiworldDDQNAgent
+from agent import MultiworldDDQNAgent, FrameToActionNetwork
 
 
 agent_default_kwargs = {
@@ -11,7 +11,8 @@ agent_default_kwargs = {
     "batch_size": 32,
     "gamma": 0.9,
     "lr": 0.001,
-    "dropout": 0,
+    "policy_net": FrameToActionNetwork,
+    "policy_net_kwargs": {"dropout": 0},
     "exploration_max": 1.0,
     "exploration_min": 0.05,
     "exploration_decay": 0.999,

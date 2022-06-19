@@ -30,11 +30,12 @@ class DDQNAgent:
         self,
         state_space: npt.NDArray[np.float64],
         action_space: int,
-        max_memory_size: int,
-        batch_size: int,
+        policy_net: nn.Module,
+        policy_net_kwargs: dict,
         gamma: float,
         lr: float,
-        dropout: float,
+        max_memory_size: int,
+        batch_size: int,
         exploration_max: float,
         exploration_min: float,
         exploration_decay: float,
@@ -52,10 +53,10 @@ class DDQNAgent:
         # - Primary, for selecting best actions
         # - Target, for evaluating the action
         # Primary weights are copied onto target every `self.copy` steps
-        self.primary_net = FrameToActionNetwork(state_space, action_space, dropout).to(
-            self.device
-        )
-        self.target_net = FrameToActionNetwork(state_space, action_space, dropout).to(
+        self.primary_net = policy_net(
+            state_space, action_space, **policy_net_kwargs
+        ).to(self.device)
+        self.target_net = policy_net(state_space, action_space, **policy_net_kwargs).to(
             self.device
         )
         if self.is_pretrained:
