@@ -10,7 +10,7 @@ import numpy.typing as npt
 import torch
 import torch.nn as nn
 
-from .solver import DQNetwork
+from .solver import FrameToActionNetwork
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ddqn-agent")
@@ -52,8 +52,12 @@ class DDQNAgent:
         # - Primary, for selecting best actions
         # - Target, for evaluating the action
         # Primary weights are copied onto target every `self.copy` steps
-        self.primary_net = DQNetwork(state_space, action_space, dropout).to(self.device)
-        self.target_net = DQNetwork(state_space, action_space, dropout).to(self.device)
+        self.primary_net = FrameToActionNetwork(state_space, action_space, dropout).to(
+            self.device
+        )
+        self.target_net = FrameToActionNetwork(state_space, action_space, dropout).to(
+            self.device
+        )
         if self.is_pretrained:
             if self.save_dir is None:
                 raise ValueError("`save_dir` must be specified for resuming training")

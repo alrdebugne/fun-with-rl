@@ -1,11 +1,10 @@
-# Build DQN network for approximating the Q function
-from typing import Tuple
+from typing import List, Union, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
 
 
-class DQNetwork(nn.Module):
+class FrameToActionNetwork(nn.Module):
     """
     Simple network taking as input a video frame (or stack of frames) and outputting
     a distribution over the possible action space.
@@ -40,3 +39,38 @@ class DQNetwork(nn.Module):
     def forward(self, x) -> None:
         conv_out = self.conv(x).view(x.size()[0], -1)
         return self.fc(conv_out)
+
+
+class SimpleMLPNetwork(nn.Module):
+    """
+    Simple MLP, mainly for testing purposes.
+    """
+
+    def __init__(
+        self, input_shape: int, n_actions: int, hidden_sizes: Union[int, List[int]]
+    ):
+        super().__init__()
+
+        if isinstance(input_shape, (list, tuple)) or isinstance(
+            n_actions, (list, tuple)
+        ):
+            e = (
+                "SimpleMLPNetowrk can only take one-dimensional input and output shapes "
+                f"but got {input_shape} and {n_actions} instead (I/O)."
+            )
+            raise NotImplementedError(e)
+
+        if isinstance(hidden_sizes, int):
+            hidden_sizes = [hidden_sizes]
+
+        # Build fully connected network with dimensions: input_shape -> *hidden_sizes -> n_actions
+        # and ReLU activation for hidden layers
+        layers = []
+        sizes = [input_shape] + hidden_sizes + [n_actions]
+        for i in range(len(sizes) - 1):
+            activation = nn.ReLU if i < len(sizes) - 2 else nn.Identity
+            layers += [nn.Linear(sizes[i], sizes[i + 1]), activation()]
+        self.mlp = nn.Sequential(*layers)
+
+    def forward(self, x) -> torch.Tensor:
+        return self.mlp(x)

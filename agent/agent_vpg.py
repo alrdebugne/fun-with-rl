@@ -11,7 +11,6 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from .solver import DQNetwork
 from utils import render_in_jupyter
 
 logger = logging.getLogger("vpg-agent")
@@ -33,9 +32,10 @@ class VPGAgent:
         self,
         state_space: npt.NDArray[np.float64],
         action_space: int,
+        policy_net: nn.Module,
+        policy_net_kwargs: dict,
         gamma: float,
         lr: float,  # alpha for gradient ascent
-        dropout: float,
         exploration_max: float,
         exploration_min: float,
         exploration_decay: float,
@@ -51,7 +51,9 @@ class VPGAgent:
         self.is_pretrained = is_pretrained
 
         # Define network for policy
-        self.policy = DQNetwork(state_space, action_space, dropout).to(self.device)
+        self.policy = policy_net(state_space, action_space, **policy_net_kwargs).to(
+            self.device
+        )
         if self.is_pretrained:
             if self.save_dir is None:
                 raise ValueError("`save_dir` must be specified for resuming training")
@@ -59,7 +61,7 @@ class VPGAgent:
             # Load weights from previous iteration
             self.policy.load_state_dict(
                 torch.load(
-                    self.save_dir / Path("vpg_gae.pt"),
+                    self.save_dir,
                     map_location=torch.device(self.device),
                 )
             )
@@ -72,7 +74,6 @@ class VPGAgent:
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
         self.exploration_rate = exploration_max
-        # ^ temporary, before implementing update_exploration_rate
 
     def play_episode(
         self, env, render: bool = False
@@ -123,7 +124,7 @@ class VPGAgent:
 
         end = time.time()
 
-        logger.info(
+        logger.debug(
             f"--- Computed trajectory in {int(end - start):.2f} s (reward: {sum(rewards)}, steps: {steps_episode})"
         )
 
@@ -246,7 +247,7 @@ class VPGAgent:
             if (epoch > 0) & (epoch % print_progress_after == 0):
                 logger.info(
                     f"({epoch}) Epoch complete. Average return: {average_return:.2f} "
-                    f"(loss: {loss:.2}"
+                    f"(loss: {loss:.2})"
                 )
 
             if (epoch > 0) & (epoch % save_after_epochs == 0):
