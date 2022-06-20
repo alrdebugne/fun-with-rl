@@ -68,7 +68,7 @@ class SimpleMLPNetwork(nn.Module):
         layers = []
         sizes = [input_shape] + hidden_sizes + [n_actions]
         for i in range(len(sizes) - 1):
-            activation = nn.ReLU if i < len(sizes) - 2 else nn.Identity
+            activation = nn.Tanh if i < len(sizes) - 2 else nn.Identity
             layers += [nn.Linear(sizes[i], sizes[i + 1]), activation()]
         self.mlp = nn.Sequential(*layers)
 

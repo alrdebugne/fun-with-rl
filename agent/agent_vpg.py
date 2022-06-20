@@ -6,6 +6,7 @@ import time
 from typing import Any, Dict, List, Tuple, Union
 
 import numpy as np
+import pandas as pd
 import numpy.typing as npt
 import torch
 import torch.nn as nn
@@ -36,9 +37,6 @@ class VPGAgent:
         policy_net_kwargs: dict,
         gamma: float,
         lr: float,  # alpha for gradient ascent
-        exploration_max: float,
-        exploration_min: float,
-        exploration_decay: float,
         save_dir: Path = Path("./data/tmp/"),
         is_pretrained: bool = False,
     ):
@@ -69,12 +67,6 @@ class VPGAgent:
         self.optimizer = torch.optim.Adam(self.policy.parameters(), lr=lr)
         self.step = 0  # initialise steps
 
-        # ~~~ Learning parameters ~~~
-        self.exploration_max = exploration_max
-        self.exploration_min = exploration_min
-        self.exploration_decay = exploration_decay
-        self.exploration_rate = exploration_max
-
     def play_episode(
         self, env, render: bool = False
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[np.float64], int]:
@@ -90,8 +82,8 @@ class VPGAgent:
         Note the returns have different types than `play_epoch`.
         """
 
-        state = env.reset()
-        state = torch.Tensor(np.array([state]))
+        state = env.reset(seed=0)  # temporary
+        state = torch.as_tensor(state, dtype=torch.float32)
         observations = []
         actions = []
         rewards = []
@@ -113,14 +105,14 @@ class VPGAgent:
             observations.append(state)
             # Pick next action and step environment forward
             action = self._act(state)
-            actions.append(action)
-            steps_episode += 1
-            state_next, reward, done, info = env.step(int(action[0]))
+            state_next, reward, done, info = env.step(action)
 
             # Format to pytorch tensors
-            state_next = torch.Tensor(np.array([state_next]))
+            state_next = torch.as_tensor(state_next, dtype=torch.float32)
+            actions.append(action)
             rewards.append(reward)
             state = state_next
+            steps_episode += 1
 
         end = time.time()
 
@@ -132,7 +124,7 @@ class VPGAgent:
 
     def play_epoch(
         self, env, steps_per_epoch: int, render: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float, dict]:
         """
         Samples trajectories inside `env` on-policy until a batch of size at least `steps_per_epoch` is assembled.
 
@@ -141,20 +133,24 @@ class VPGAgent:
             actions: tensor of actions taken at t (size (num_steps))
             weights: tensor of weights by which to multiply the log(policy) terms (size (num_steps));
                      cf. self.compute_weights() for the formulation
-            average return: average return
+            average return: average return over episodes
+            info: dict logging run details (e.g. actions, rewards, weigts)
+            TODO: complete / structure
 
         Note the returns have different types than `play_episode`.
         """
 
-        steps = 0
+        steps_current = 0
         observations = []
         actions = []
         weights = []
         rewards = []
+        steps = []
+        returns = []  # for total trajectory
 
         has_rendered_epoch = False
 
-        while steps < steps_per_epoch:
+        while steps_current < steps_per_epoch:
             if render and not has_rendered_epoch:
                 render_episode = True
                 has_rendered_epoch = True
@@ -168,25 +164,38 @@ class VPGAgent:
                 steps_episode,
             ) = self.play_episode(env, render=render_episode)
 
-            observations.extend(obs_episode)
-            actions.extend(actions_episode)
             # Compute weights from rewards
             weights_episode = self._compute_weights(rewards_episode)
+
+            # Log run statistics for debugging
+            observations.extend(obs_episode)
+            actions.extend(actions_episode)
+            rewards.extend(rewards_episode)
+            steps.append(steps_episode)
             weights.extend(weights_episode)
-            steps += steps_episode
-            rewards.append(np.sum(rewards_episode))
+            returns.append(np.sum(rewards_episode))
+
+            steps_current += steps_episode
+
+        # Store information useful for debugging
+        info = {
+            "actions": actions,
+            "rewards": rewards,
+            "weights": weights,
+            "steps": steps,
+        }
 
         # Cast observations, actions and weights to tensors for optimisation steps
-        # observations: from list of n tensors (c, h, w) to tensor batch (n, c, h, w)
-        # actions: from list of n tensors (1) to tensor batch (n)
+        # observations: from list of n tensors (*state_space) to tensor batch (n, *state_space)
+        # actions: from list of n ints (1) to tensor batch (n)
         # weights: from list of n floats (1) to tensor batch (n)
-        observations = torch.cat(observations)
-        actions = torch.cat(actions).squeeze()
+        observations = torch.stack(observations)
+        actions = torch.as_tensor(actions)
         weights = torch.tensor(weights)
         # Compute average return for epoch
-        average_return = np.mean(rewards)
+        average_return = np.mean(returns)
 
-        return observations, actions, weights, average_return
+        return observations, actions, weights, average_return, info
 
     def run(
         self,
@@ -196,7 +205,7 @@ class VPGAgent:
         save_after_epochs: int,
         print_progress_after: int = 10,
         render: bool = False,
-    ) -> Tuple[List[int], List[float], List[float]]:
+    ) -> pd.DataFrame:
         """
         Updates policy over the course of `num_epoch` epochs of size `steps_per_epoch`,
         saving progress every `save_after_epochs` steps.
@@ -209,20 +218,13 @@ class VPGAgent:
         agent = VPGAgent(...)
         agent.run(env, num_epochs=1000, save_after_epochs=1000)
         ```
-
-        TODO: the code is inefficient right now because it uses two forward loops instead of one:
-        one when calling self.act() to get the action, then another when computing losses (on a batch).
-        Another consequence of that is that we need to store observations, because we need them for computing
-        losses, too. Refactor this.
         """
 
         if not isinstance(self.save_dir, Path):
             e = f"Called method run(), but agent has invalid save dir: {self.save_dir}"
             raise ValueError(e)
 
-        steps: List[int] = []
-        average_returns = []
-        losses = []
+        infos: List[dict] = []
 
         logger.info(
             f"Starting training for {num_epochs} epochs with parameters: ... (TODO)"
@@ -236,8 +238,8 @@ class VPGAgent:
                 batch_actions,
                 batch_weights,
                 average_return,
+                info,
             ) = self.play_epoch(env, steps_per_epoch, render)
-            self._update_exploration_rate(num_steps=len(batch_weights))
             # Perform policy upgrade step
             self.optimizer.zero_grad()
             loss = self._compute_loss(batch_observations, batch_actions, batch_weights)
@@ -246,8 +248,8 @@ class VPGAgent:
 
             if (epoch > 0) & (epoch % print_progress_after == 0):
                 logger.info(
-                    f"({epoch}) Epoch complete. Average return: {average_return:.2f} "
-                    f"(loss: {loss:.2})"
+                    f"Epoch: {epoch} \t Returns: {average_return:.2f} \t "
+                    f"Steps: {np.mean(info['steps']):.2f} \t Loss: {loss:.2f}"
                 )
 
             if (epoch > 0) & (epoch % save_after_epochs == 0):
@@ -255,10 +257,11 @@ class VPGAgent:
                 self._save(dir=self.save_dir)
                 logger.info("Done.")
 
-            # Log steps, returns and losses to inspect learning
-            steps.append(len(batch_observations))
-            average_returns.append(average_return)
-            losses.append(loss.item())
+            # Log run statistics for debugging
+            info["steps"] = len(batch_observations)
+            info["average_return"] = average_return
+            info["loss"] = loss.item()
+            infos.append(info)
 
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
@@ -267,24 +270,19 @@ class VPGAgent:
         self._save(dir=self.save_dir)
         logger.info("Done.")
 
-        return steps, average_returns, losses
+        # Format run statistics before reutrning
+        return self._format_info_as_df(infos)
 
-    def _act(self, state) -> torch.Tensor:
+    def _act(self, state: torch.Tensor) -> int:
         """
-        Epsilon-greedy policy: output next action given `state`, either by:
-        - exploring randomly, with proba. `self.exploration_rate`
-        - picking best action from policy
+        Samples next action from policy(a|s)
+
+        Ex.: if there are two actions, a1 & a2, with prob. p1 & p2, then `_act`
+        returns action a1 with prob. p1, and a2 with prob. p2.
         """
         self.step += 1
-        if random.random() < self.exploration_rate:
-            return torch.tensor([[random.randrange(self.action_space)]])
-        return (
-            torch.argmax(self.policy(state.to(self.device)))
-            .unsqueeze(0)
-            .unsqueeze(0)
-            .cpu()
-            # ^ calling unsqueeze to return 'nested' tensor
-        )
+        logits = self.policy(state)
+        return Categorical(logits=logits).sample().item()
 
     def _compute_weights(self, rewards_trajectory: List[np.float64]) -> Any:
         """
@@ -352,12 +350,20 @@ class VPGAgent:
         #   the total value of trajectory (the greater, the better), not a loss.
         return -(log_policy * weights).mean()
 
-    def _update_exploration_rate(self, num_steps: int) -> None:
-        """Updates agent's appetite for exploration"""
-        self.exploration_rate = max(
-            self.exploration_min,
-            self.exploration_rate * self.exploration_decay**num_steps,
-        )
+    def _format_info_as_df(self, infos: List[dict]) -> pd.DataFrame:
+        """
+        Convert run statistics `info` to pd.DataFrame for simpler exploration
+        """
+        df = []
+        for epoch, info in enumerate(infos):
+            _df = pd.DataFrame()
+            _df["action"] = info["actions"]
+            _df["weight"] = info["weights"]
+            _df["reward"] = info["rewards"]
+            _df["loss"] = info["loss"]
+            _df["epoch"] = epoch
+            df.append(_df)
+        return pd.concat(df)
 
     def _save(self, dir: Path) -> None:
         """Saves memory buffer and network parameters"""
