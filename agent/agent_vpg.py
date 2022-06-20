@@ -38,6 +38,7 @@ class VPGAgent:
         gamma: float,
         lr: float,  # alpha for gradient ascent
         save_dir: Path = Path("./data/tmp/"),
+        save_name: Path = Path("vpg.pt"),
         is_pretrained: bool = False,
     ):
         """ """
@@ -46,6 +47,7 @@ class VPGAgent:
         self.action_space = action_space
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.save_dir = save_dir
+        self.save_name = save_name
         self.is_pretrained = is_pretrained
 
         # Define network for policy
@@ -59,7 +61,7 @@ class VPGAgent:
             # Load weights from previous iteration
             self.policy.load_state_dict(
                 torch.load(
-                    self.save_dir,
+                    self.save_dir / self.save_name,
                     map_location=torch.device(self.device),
                 )
             )
@@ -103,9 +105,11 @@ class VPGAgent:
 
             # Store current state
             observations.append(state)
-            # Pick next action and step environment forward
-            action = self._act(state)
+            # Pick next action
+            action = self._act(state.unsqueeze(0))
+            # Step environment forward with choosen action
             state_next, reward, done, info = env.step(action)
+            # ^ .unsqueeze(0) turns tensor (*state_space) into a tensor (1, *state_space)
 
             # Format to pytorch tensors
             state_next = torch.as_tensor(state_next, dtype=torch.float32)
@@ -247,13 +251,13 @@ class VPGAgent:
             loss.backward()
             self.optimizer.step()
 
-            if (epoch > 0) & (epoch % print_progress_after == 0):
+            if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
                     f"Epoch: {epoch} \t Returns: {average_return:.2f} \t "
                     f"Steps: {np.mean(info['steps']):.2f} \t Loss: {loss:.2f}"
                 )
 
-            if (epoch > 0) & (epoch % save_after_epochs == 0):
+            if (epoch > 0) and (epoch % save_after_epochs == 0):
                 logger.info(f"({epoch}) Saving progress at epoch {epoch}...")
                 self._save(dir=self.save_dir)
                 logger.info("Done.")
@@ -267,7 +271,7 @@ class VPGAgent:
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
         logger.info(f"Final average return: {average_return:.2f}")
-        logger.info("Saving final state...")
+        logger.info(f"Saving final state in {str(self.save_dir)}...")
         self._save(dir=self.save_dir)
         logger.info("Done.")
 
@@ -374,4 +378,4 @@ class VPGAgent:
         # Save rewards accumulated at each epoch
         # with open(dir / Path("rewards.pkl"), "wb") as f:
         #     pickle.dump(self.rewards, f)
-        torch.save(self.policy.state_dict(), dir / Path("vpg_gae.pt"))
+        torch.save(self.policy.state_dict(), dir / self.save_name)
