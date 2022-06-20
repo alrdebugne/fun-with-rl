@@ -82,7 +82,7 @@ class VPGAgent:
         Note the returns have different types than `play_epoch`.
         """
 
-        state = env.reset(seed=0)  # temporary
+        state = env.reset()
         state = torch.as_tensor(state, dtype=torch.float32)
         observations = []
         actions = []
@@ -232,6 +232,7 @@ class VPGAgent:
         start = time.time()
 
         for epoch in range(num_epochs):
+            render_epoch = render and (epoch % print_progress_after == 0)
             # Sample observations and rewards from one epoch
             (
                 batch_observations,
@@ -239,7 +240,7 @@ class VPGAgent:
                 batch_weights,
                 average_return,
                 info,
-            ) = self.play_epoch(env, steps_per_epoch, render)
+            ) = self.play_epoch(env, steps_per_epoch, render_epoch)
             # Perform policy upgrade step
             self.optimizer.zero_grad()
             loss = self._compute_loss(batch_observations, batch_actions, batch_weights)
