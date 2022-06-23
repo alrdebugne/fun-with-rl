@@ -1,9 +1,7 @@
 import logging
 from pathlib import Path
-import pickle
-import random
 import time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -37,8 +35,8 @@ class VPGAgent:
         policy_net_kwargs: dict,
         gamma: float,
         lr: float,  # alpha for gradient ascent
-        save_dir: Path = Path("./data/tmp/"),
-        save_name: Path = Path("vpg.pt"),
+        save_dir: Union[Path, None] = None,
+        save_name: Union[Path, None] = None,
         is_pretrained: bool = False,
     ):
         """ """
@@ -55,13 +53,13 @@ class VPGAgent:
             self.device
         )
         if self.is_pretrained:
-            if self.save_dir is None:
+            if self.save_dir is None or self.save_name is None:
                 raise ValueError("`save_dir` must be specified for resuming training")
             logger.info("Loading weights from previous runs...")
             # Load weights from previous iteration
             self.policy.load_state_dict(
                 torch.load(
-                    self.save_dir / self.save_name,
+                    self.save_dir / self.save_name,  # type: ignore
                     map_location=torch.device(self.device),
                 )
             )
@@ -117,6 +115,10 @@ class VPGAgent:
             rewards.append(reward)
             state = state_next
             steps_episode += 1
+
+            if steps_episode > 2000:
+                logging.info("Interrupted episode because it exceeded 2,000 steps.")
+                break
 
         end = time.time()
 
@@ -224,9 +226,10 @@ class VPGAgent:
         ```
         """
 
-        if not isinstance(self.save_dir, Path):
-            e = f"Called method run(), but agent has invalid save dir: {self.save_dir}"
-            raise ValueError(e)
+        if self.save_dir is None:
+            logging.warning(
+                f"Called method run(), but agent has save dir 'None'. Progress will not be saved."
+            )
 
         infos: List[dict] = []
 
@@ -259,7 +262,7 @@ class VPGAgent:
 
             if (epoch > 0) and (epoch % save_after_epochs == 0):
                 logger.info(f"({epoch}) Saving progress at epoch {epoch}...")
-                self._save(dir=self.save_dir)
+                self._save(dir=self.save_dir, name=self.save_name)  # type: ignore
                 logger.info("Done.")
 
             # Log run statistics for debugging
@@ -271,9 +274,10 @@ class VPGAgent:
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
         logger.info(f"Final average return: {average_return:.2f}")
-        logger.info(f"Saving final state in {str(self.save_dir)}...")
-        self._save(dir=self.save_dir)
-        logger.info("Done.")
+        if self.save_dir:
+            logger.info(f"Saving final state in {str(self.save_dir)}...")
+            self._save(dir=self.save_dir, name=self.save_name)  # type: ignore
+            logger.info("Done.")
 
         # Format run statistics before reutrning
         return self._format_info_as_df(infos)
@@ -365,17 +369,15 @@ class VPGAgent:
             _df["action"] = info["actions"]
             _df["weight"] = info["weights"]
             _df["reward"] = info["rewards"]
+            _df["average_return"] = info["average_return"]
             _df["loss"] = info["loss"]
             _df["epoch"] = epoch
             df.append(_df)
         return pd.concat(df)
 
-    def _save(self, dir: Path) -> None:
+    def _save(self, dir: Path, name: Path) -> None:  # type: ignore
         """Saves memory buffer and network parameters"""
 
         dir.mkdir(parents=True, exist_ok=True)
-
-        # Save rewards accumulated at each epoch
-        # with open(dir / Path("rewards.pkl"), "wb") as f:
-        #     pickle.dump(self.rewards, f)
-        torch.save(self.policy.state_dict(), dir / self.save_name)
+        # Save current weights
+        torch.save(self.policy.state_dict(), dir / name)
