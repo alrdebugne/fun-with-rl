@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 import time
-from typing import Any, List, Tuple, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -17,14 +17,13 @@ logger = logging.getLogger("vpg-agent")
 
 class VPGAgent:
     """
-    Agent class, using Vanilla Policy Gradient with GAE-lambda advantage estimation
+    Agent class, using Vanilla Policy Gradient with rewards-to-go
 
     Main methods:
     - XXX
 
     Current simplifications:
     - Rewards-to-go used insted of advantage function inside log-grad policy
-    - Rewards are undiscounted
     """
 
     def __init__(
@@ -279,21 +278,23 @@ class VPGAgent:
             self._save(dir=self.save_dir, name=self.save_name)  # type: ignore
             logger.info("Done.")
 
-        # Format run statistics before reutrning
+        # Format run statistics before returning
         return self._format_info_as_df(infos)
 
     def _act(self, state: torch.Tensor) -> int:
         """
         Samples next action from policy(a|s)
 
-        Ex.: if there are two actions, a1 & a2, with prob. p1 & p2, then `_act`
-        returns action a1 with prob. p1, and a2 with prob. p2.
+        Ex.: if there are two actions, a1 & a2, with prob. p1 & p2, then
+        `_act` returns action a1 with prob. p1, and a2 with prob. p2.
         """
         self.step += 1
         logits = self.policy(state)
         return Categorical(logits=logits).sample().item()
 
-    def _compute_weights(self, rewards_trajectory: List[np.float64]) -> Any:
+    def _compute_weights(
+        self, rewards_trajectory: List[np.float64]
+    ) -> List[np.float64]:
         """
         Computes weights for every stage transition t in the trajectory.
         In the simplest formulations, weights are the (discounted) rewards-to-go.
@@ -317,7 +318,7 @@ class VPGAgent:
 
     def _compute_loss(
         self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
-    ) -> Any:
+    ) -> torch.float32:
         """
         Computes 'loss' for a batch of observations.
 
