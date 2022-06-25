@@ -18,12 +18,6 @@ logger = logging.getLogger("vpg-agent")
 class VPGAgent:
     """
     Agent class, using Vanilla Policy Gradient with rewards-to-go
-
-    Main methods:
-    - XXX
-
-    Current simplifications:
-    - Rewards-to-go used insted of advantage function inside log-grad policy
     """
 
     def __init__(
@@ -320,7 +314,7 @@ class VPGAgent:
         self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
     ) -> torch.float32:
         """
-        Computes 'loss' for a batch of observations.
+        Computes 'loss' for policy network on a batch of observations.
 
         Note this is not really a 'loss' in the sense of performance metric, but an objective
         that we train the policy network to maximise (because it has the same gradient
