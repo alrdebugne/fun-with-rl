@@ -53,6 +53,9 @@ def test_vpg_agent_on_simple_envs(
     _kwargs = deepcopy(agent_kwargs)
     _kwargs["state_space"] = observation_space
     _kwargs["action_space"] = action_space
+    _kwargs["policy_net_kwargs"].update(
+        {"input_shape": observation_space, "n_actions": action_space}
+    )
     agent = agent_class(**_kwargs)  # type: ignore
 
     # Learn to play
