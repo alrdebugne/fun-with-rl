@@ -1,6 +1,7 @@
 import logging
 from pathlib import Path
 import time
+import typing
 from typing import List, Tuple, Union
 
 import numpy as np
@@ -42,9 +43,7 @@ class VPGAgent:
         self.is_pretrained = is_pretrained
 
         # Define network for policy
-        self.policy = policy_net(state_space, action_space, **policy_net_kwargs).to(
-            self.device
-        )
+        self.policy = policy_net(**policy_net_kwargs).to(self.device)
         if self.is_pretrained:
             if self.save_dir is None or self.save_name is None:
                 raise ValueError("`save_dir` must be specified for resuming training")
@@ -164,7 +163,7 @@ class VPGAgent:
             ) = self.play_episode(env, render=render_episode)
 
             # Compute weights from rewards
-            weights_episode = self._compute_weights(rewards_episode)
+            weights_episode = self._compute_weights(obs_episode, rewards_episode)
 
             # Log run statistics for debugging
             observations.extend(obs_episode)
@@ -255,7 +254,7 @@ class VPGAgent:
 
             if (epoch > 0) and (epoch % save_after_epochs == 0):
                 logger.info(f"({epoch}) Saving progress at epoch {epoch}...")
-                self._save(dir=self.save_dir, name=self.save_name)  # type: ignore
+                self._save()
                 logger.info("Done.")
 
             # Log run statistics for debugging
@@ -269,7 +268,7 @@ class VPGAgent:
         logger.info(f"Final average return: {average_return:.2f}")
         if self.save_dir:
             logger.info(f"Saving final state in {str(self.save_dir)}...")
-            self._save(dir=self.save_dir, name=self.save_name)  # type: ignore
+            self._save()
             logger.info("Done.")
 
         # Format run statistics before returning
@@ -287,28 +286,28 @@ class VPGAgent:
         return Categorical(logits=logits).sample().item()
 
     def _compute_weights(
-        self, rewards_trajectory: List[np.float64]
+        self, states: List[torch.Tensor], rewards: List[np.float64]
     ) -> List[np.float64]:
         """
-        Computes weights for every stage transition t in the trajectory.
-        In the simplest formulations, weights are the (discounted) rewards-to-go.
-        More complex formulations are found in the children classes of VPGActor.
+        Computes weights for every stage transition t in the trajectory as the
+        rewards-to-go, i.e.  w(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t')
+
+        NOTE: `states` is unused in VPG, but used in children classes that
+        implement more complex formulation to compute weights.
         """
 
-        # `rewards_trajectory` contains the reward r(t) collected at every time step
-        # We want to compute the sum of (undiscounted) rewards that each action enabled,
+        # `rewards` contains the reward r(t) collected at every time step
+        # We want to compute the sum of (discounted) rewards that each action enabled,
         # not including past rewards; i.e. we want
-        #   w(t) = sum_{t'=t}^{T} r(t')
+        #   w(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t')
 
-        n = len(rewards_trajectory)
-        weights_trajectory = np.zeros_like(rewards_trajectory)
+        n = len(rewards)
+        weights = np.zeros_like(rewards)
         for i in reversed(range(n)):
-            weights_trajectory[i] = rewards_trajectory[i] + self.gamma * (
-                weights_trajectory[i + 1] if i + 1 < n else 0
-            )
+            weights[i] = rewards[i] + self.gamma * (weights[i + 1] if i + 1 < n else 0)
             # ^ faster than looping forward with weights[i] = rewards[i:].sum()
 
-        return weights_trajectory
+        return weights
 
     def _compute_loss(
         self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
@@ -370,9 +369,10 @@ class VPGAgent:
             df.append(_df)
         return pd.concat(df)
 
-    def _save(self, dir: Path, name: Path) -> None:  # type: ignore
-        """Saves memory buffer and network parameters"""
+    @typing.no_type_check
+    def _save(self) -> None:
+        """Saves network parameters"""
 
-        dir.mkdir(parents=True, exist_ok=True)
+        self.save_dir.mkdir(parents=True, exist_ok=True)
         # Save current weights
-        torch.save(self.policy.state_dict(), dir / name)
+        torch.save(self.policy.state_dict(), self.save_dir / self.save_name)
