@@ -122,13 +122,14 @@ class VPGAgent:
 
     def play_epoch(
         self, env, steps_per_epoch: int, render: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, float, dict]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, float, dict]:
         """
         Samples trajectories inside `env` on-policy until a batch of size at least `steps_per_epoch` is assembled.
 
         Returns:
             observations: tensor of states observed at t (size (num_steps, **`state_space`))
             actions: tensor of actions taken at t (size (num_steps))
+            rewards: tensor of rewards collected at t (size (num_steps))
             weights: tensor of weights by which to multiply the log(policy) terms (size (num_steps));
                      cf. self.compute_weights() for the formulation
             average return: average return over episodes
@@ -186,14 +187,15 @@ class VPGAgent:
         # Cast observations, actions and weights to tensors for optimisation steps
         # observations: from list of n tensors (*state_space) to tensor batch (n, *state_space)
         # actions: from list of n ints (1) to tensor batch (n)
-        # weights: from list of n floats (1) to tensor batch (n)
+        # rewards & weights: from list of n floats (1) to tensor batch (n)
         observations = torch.stack(observations)
         actions = torch.as_tensor(actions)
+        rewards = torch.tensor(rewards)
         weights = torch.tensor(weights)
         # Compute average return for epoch
         average_return = np.mean(returns)
 
-        return observations, actions, weights, average_return, info
+        return observations, actions, rewards, weights, average_return, info
 
     def run(
         self,
@@ -236,6 +238,7 @@ class VPGAgent:
             (
                 batch_observations,
                 batch_actions,
+                batch_rewards,
                 batch_weights,
                 average_return,
                 info,

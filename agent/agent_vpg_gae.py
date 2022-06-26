@@ -25,7 +25,7 @@ class VPGGAEAgent(VPGAgent):
         value_func_net_kwargs: dict,
         value_func_lambda: float,
         value_func_lr: float,
-        save_name_value_func: Union[Path, None] = None,
+        value_func_save_name: Union[Path, None] = None,
         *super_args,
         **super_kwargs,
     ):
@@ -35,10 +35,11 @@ class VPGGAEAgent(VPGAgent):
         # ~~ Add network, loss and optimizer for value function ~~~
         self._lambda = value_func_lambda
         self.value_func = value_func_net(**value_func_net_kwargs).to(self.device)
-        self.optimizer_value_func = torch.optim.Adam(
+        self.value_func_loss = nn.MSELoss(reduction="sum")
+        self.value_func_optimizer = torch.optim.Adam(
             self.value_func.parameters(), lr=value_func_lr
         )
-        self.save_name_value_func = save_name_value_func
+        self.value_func_save_name = value_func_save_name
 
     def run(
         self,
@@ -81,6 +82,7 @@ class VPGGAEAgent(VPGAgent):
             (
                 batch_observations,
                 batch_actions,
+                batch_rewards,
                 batch_weights,
                 average_return,
                 info,
@@ -93,10 +95,12 @@ class VPGGAEAgent(VPGAgent):
             self.optimizer.step()
 
             # Update value function
-            self.optimizer_value_func.zero_grad()
-            loss_value_func = self._compute_loss_value_func()
+            self.value_func_optimizer.zero_grad()
+            loss_value_func = self._compute_loss_value_func(
+                batch_observations, batch_rewards
+            )
             loss_value_func.backward()
-            self.optimizer_value_func.step()
+            self.value_func_optimizer.step()
             kl_value_func = None  # TODO
 
             if (epoch > 0) and (epoch % print_progress_after == 0):
@@ -146,11 +150,11 @@ class VPGGAEAgent(VPGAgent):
         n = len(rewards)
         deltas = np.zeros_like(rewards)
         for i in range(n):
-            deltas[i] = (
-                -state_values[i]
-                + rewards[i]
-                + self.gamma * (state_values[i + 1] if i + 1 < n else 0)
+            # fmt: off
+            deltas[i] = -state_values[i] + rewards[i] + self.gamma * (
+                state_values[i + 1] if i + 1 < n else 0
             )
+            # fmt: on
 
         return deltas
 
@@ -173,11 +177,27 @@ class VPGGAEAgent(VPGAgent):
 
         return weights
 
-    def _compute_loss_value_func(self) -> torch.float32:
+    def _compute_loss_value_func(
+        self, states: List[torch.Tensor], rewards: List[np.float64]
+    ) -> torch.float32:
         """
-        Computes loss for value function a batch of observations.
+        Computes the L2 loss of our value function over a batch of observations as
+            loss = sum( [value_func(s_t) - value_observed(s_t)] ** 2 ),
+        where
+            value_func are the predictions made by our model,
+            value_observed are the target rewards, calculated as the discounted
+            sum of rewards-to-go
         """
-        raise NotImplementedError
+        # Compute predictions of value model V(s_t) for all states
+        predictions = self.value_func(torch.stack(states)).squeeze()
+        # Define target values as the discounted sum of rewards-to-go
+        targets = torch.as_tensor(
+            super()._compute_weights(states, rewards), dtype=torch.float32
+        )
+        # ^ super's weights are discounted rewards-to-go (cast to torch.tensor)
+
+        # Return L2 loss (summed)
+        return self.value_func_loss(predictions, targets)
 
     def _format_info_as_df(self, infos: List[dict]) -> pd.DataFrame:
         """
@@ -191,7 +211,7 @@ class VPGGAEAgent(VPGAgent):
         d_loss, d_kl = {}, {}
         for epoch, info in enumerate(infos):
             d_loss[epoch] = info["loss_value_func"]
-            d_kl[epoch] = info["kl_value_func"]
+            d_kl[epoch] = info.get("kl_value_func", None)  # temporary
 
         df["loss_value_func"] = df["epoch"].map(d_loss)
         df["kl_value_func"] = df["epoch"].map(d_kl)
@@ -206,5 +226,5 @@ class VPGGAEAgent(VPGAgent):
         # Save current weights
         torch.save(self.policy.state_dict(), self.save_dir / self.save_name)
         torch.save(
-            self.value_func.state_dict(), self.save_dir / self.save_name_value_func
+            self.value_func.state_dict(), self.save_dir / self.value_func_save_name
         )
