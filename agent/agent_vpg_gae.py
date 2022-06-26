@@ -35,7 +35,7 @@ class VPGGAEAgent(VPGAgent):
         # ~~ Add network, loss and optimizer for value function ~~~
         self._lambda = value_func_lambda
         self.value_func = value_func_net(**value_func_net_kwargs).to(self.device)
-        self.value_func_loss = nn.MSELoss(reduction="sum")
+        self.value_func_loss = nn.MSELoss(reduction="mean")
         self.value_func_optimizer = torch.optim.Adam(
             self.value_func.parameters(), lr=value_func_lr
         )
@@ -95,6 +95,9 @@ class VPGGAEAgent(VPGAgent):
             self.optimizer.step()
 
             # Update value function
+            # TODO: openai spinup.vpg_py uses the same episodes to
+            # update V multiple times (80 by default), but with lower lr (1e-3)
+            # Why?
             self.value_func_optimizer.zero_grad()
             loss_value_func = self._compute_loss_value_func(
                 batch_observations, batch_rewards
@@ -107,7 +110,7 @@ class VPGGAEAgent(VPGAgent):
                 logger.info(
                     f"Epoch: {epoch} \t Returns: {average_return:.2f} \t "
                     f"Steps: {np.mean(info['steps']):.2f} \t Policy loss: {loss:.2f} \t "
-                    f"Value funciton loss: {loss_value_func:.2f}"
+                    f"Value function loss: {loss_value_func:.2f}"
                 )
 
             if (epoch > 0) and (epoch % save_after_epochs == 0):
@@ -166,6 +169,7 @@ class VPGGAEAgent(VPGAgent):
             weight[t] = sum_{t'=t}^{T} (gamma*lambda)^{t'-t} * d(t'),
         where d(t') is the Bellman residual discounted at rate gamma.
         """
+
         deltas = self._bellman_residuals(states, rewards)
         #
         weights = np.zeros_like(rewards)
@@ -189,7 +193,7 @@ class VPGGAEAgent(VPGAgent):
             sum of rewards-to-go
         """
         # Compute predictions of value model V(s_t) for all states
-        predictions = self.value_func(torch.stack(states)).squeeze()
+        predictions = self.value_func(states).squeeze()
         # Define target values as the discounted sum of rewards-to-go
         targets = torch.as_tensor(
             super()._compute_weights(states, rewards), dtype=torch.float32

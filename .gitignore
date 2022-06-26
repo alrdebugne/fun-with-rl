@@ -5,7 +5,6 @@ logs/
 
 # Notebooks
 notebooks/
-*.ipynb
 
 # Caches
 __pycache__/
