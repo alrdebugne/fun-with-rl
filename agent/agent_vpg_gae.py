@@ -39,6 +39,10 @@ class VPGGAEAgent(VPGAgent):
         self.value_func_optimizer = torch.optim.Adam(
             self.value_func.parameters(), lr=value_func_lr
         )
+        self.value_func_iter_per_epoch = 50
+        # ^ how many times we update the value function on the same batch of observations
+        # Heuristically, updating multiple times with lower learning rate seems to lead
+        # to stabler learning
         self.value_func_save_name = value_func_save_name
 
     def run(
@@ -95,16 +99,14 @@ class VPGGAEAgent(VPGAgent):
             self.optimizer.step()
 
             # Update value function
-            # TODO: openai spinup.vpg_py uses the same episodes to
-            # update V multiple times (80 by default), but with lower lr (1e-3)
-            # Why?
-            self.value_func_optimizer.zero_grad()
-            loss_value_func = self._compute_loss_value_func(
-                batch_observations, batch_rewards
-            )
-            loss_value_func.backward()
-            self.value_func_optimizer.step()
-            kl_value_func = None  # TODO
+            for _ in range(self.value_func_iter_per_epoch):
+                self.value_func_optimizer.zero_grad()
+                loss_value_func = self._compute_loss_value_func(
+                    batch_observations, batch_rewards
+                )
+                loss_value_func.backward()
+                self.value_func_optimizer.step()
+                kl_value_func = None  # TODO
 
             if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
