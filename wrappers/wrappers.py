@@ -63,12 +63,14 @@ class ProcessFrame84(gym.ObservationWrapper):
 
     @staticmethod
     def process(frame):
-        if frame.size == 240 * 256 * 3:
-            img = np.reshape(frame, [240, 256, 3]).astype(np.float32)
-        else:
-            assert False, "Unknown resolution."
+        # if frame.size == 240 * 256 * 3:
+        #     img = np.reshape(frame, [240, 256, 3]).astype(np.float32)
+        img = frame
+        # ^ Not sure why original code had this reshape block?
+        # Commented for now because it's incompatible with Atari games
+
+        # Greyscale (factors from original Mnih paper)
         img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
-        # ^ factors used across Atari games for greyscaling (not sure why)
         resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
         x_t = resized_screen[18:102, :]
         x_t = np.reshape(x_t, [84, 84, 1])
@@ -130,7 +132,7 @@ class BufferWrapper(gym.ObservationWrapper):
         return self.buffer
 
 
-def make_env(env, actions: Optional[str] = None):
+def make_env(env):
     """
     Simplify screen following original Atari paper
     TODO: move to wrappers.py (or somewhere else with wrappers.py)
@@ -140,6 +142,12 @@ def make_env(env, actions: Optional[str] = None):
     env = ImageToPyTorch(env)  # convert to (C, H, W) for pytorch
     env = BufferWrapper(env, 4)  # stack four frames in one 'input'
     env = ScaledFloatFrame(env)  # normalise RGB values to [0, 1]
+    return env
+
+
+def make_nes_env(env, actions: Optional[str] = None):
+    """Special wrapper for NES games"""
+    env = make_env(env)
     actions = actions or RIGHT_ONLY
     if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
         e = (

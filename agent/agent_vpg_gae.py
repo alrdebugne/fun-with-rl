@@ -17,6 +17,10 @@ logger = logging.getLogger("vpg-agent")
 class VPGGAEAgent(VPGAgent):
     """
     Agent class, using Vanilla Policy Gradient with GAE-lambda advantage estimation
+
+    TODO: what's the difference between VPG with GAE and A2C?
+    TODO: is it sensible to share weights for the policy & value function layers before
+    the output layer?
     """
 
     def __init__(
