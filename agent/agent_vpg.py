@@ -60,10 +60,12 @@ class VPGAgent:
         self.step = 0  # initialise steps
 
     def play_episode(
-        self, env, render: bool = False
+        self, env, render: bool = False, exploit_only: bool = False
     ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[np.float64], int]:
         """
-        Plays one episode from start to finish in `env` (i.e. one trajectory).
+        Plays one episode from start to finish in `env`.
+        For learning, `exploit_only` must be set to False. Set `exploit_only`
+        to True to follow the optimal policy.
 
         Returns:
             observations: list of states observed at t
@@ -96,7 +98,7 @@ class VPGAgent:
             # Store current state
             observations.append(state)
             # Pick next action
-            action = self._act(state.unsqueeze(0))
+            action = self._act(state.unsqueeze(0), exploit_only)
             # Step environment forward with choosen action
             state_next, reward, done, info = env.step(action)
             # ^ .unsqueeze(0) turns tensor (*state_space) into a tensor (1, *state_space)
@@ -109,7 +111,7 @@ class VPGAgent:
             steps_episode += 1
 
             if steps_episode > 2000:
-                logging.info("Interrupted episode because it exceeded 2,000 steps.")
+                logger.info("Interrupted episode because it exceeded 2,000 steps.")
                 break
 
         end = time.time()
@@ -161,7 +163,8 @@ class VPGAgent:
                 actions_episode,
                 rewards_episode,
                 steps_episode,
-            ) = self.play_episode(env, render=render_episode)
+            ) = self.play_episode(env, render=render_episode, exploit_only=False)
+            # ^ exploit_only set to False because play_epoch is only called for learning
 
             # Compute weights from rewards
             weights_episode = self._compute_weights(obs_episode, rewards_episode)
@@ -170,7 +173,7 @@ class VPGAgent:
             observations.extend(obs_episode)
             actions.extend(actions_episode)
             rewards.extend(rewards_episode)
-            steps.append(steps_episode)
+            steps.extend(list(range(steps_episode)))
             weights.extend(weights_episode)
             returns.append(np.sum(rewards_episode))
 
@@ -221,7 +224,7 @@ class VPGAgent:
         """
 
         if self.save_dir is None:
-            logging.warning(
+            logger.warning(
                 f"Called method run(), but agent has save dir 'None'. Progress will not be saved."
             )
 
@@ -245,14 +248,16 @@ class VPGAgent:
             ) = self.play_epoch(env, steps_per_epoch, render_epoch)
             # Perform policy upgrade step
             self.optimizer.zero_grad()
-            loss = self._compute_loss(batch_observations, batch_actions, batch_weights)
-            loss.backward()
+            loss_policy = self._compute_loss(
+                batch_observations, batch_actions, batch_weights
+            )
+            loss_policy.backward()
             self.optimizer.step()
 
             if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
                     f"Epoch: {epoch} \t Returns: {average_return:.2f} \t "
-                    f"Steps: {np.mean(info['steps']):.2f} \t Loss: {loss:.2f}"
+                    f"Steps: {np.mean(info['steps']):.2f} \t Loss: {loss_policy:.2f}"
                 )
 
             if (epoch > 0) and (epoch % save_after_epochs == 0):
@@ -261,9 +266,7 @@ class VPGAgent:
                 logger.info("Done.")
 
             # Log run statistics for debugging
-            info["steps"] = len(batch_observations)
-            info["average_return"] = average_return
-            info["loss"] = loss.item()
+            info["loss_policy"] = loss_policy.item()
             infos.append(info)
 
         end = time.time()
@@ -277,16 +280,22 @@ class VPGAgent:
         # Format run statistics before returning
         return self._format_info_as_df(infos)
 
-    def _act(self, state: torch.Tensor) -> int:
+    def _act(self, state: torch.Tensor, exploit_only: bool = False) -> int:
         """
-        Samples next action from policy(a|s)
+        Samples next action from policy(a|s), either probabilistically if `exploit_only`
+        is False (default for learning), or deterministically otherwise.
 
-        Ex.: if there are two actions, a1 & a2, with prob. p1 & p2, then
-        `_act` returns action a1 with prob. p1, and a2 with prob. p2.
+        Ex.: let a1, a2 be two actions with probability policy(a1|s) = p1
+        and policy(a2|s) = p2.
+        - `exploit_only` is True: returns a1 with prob. p1 and a2 with prob. p2
+        - `exploit_only` is False: returns a1 if p1 > p2, else returns a2
         """
         self.step += 1
         logits = self.policy(state)
-        return Categorical(logits=logits).sample().item()
+        if exploit_only:
+            return logits.argmax().item()
+        else:
+            return Categorical(logits=logits).sample().item()
 
     def _compute_weights(
         self, states: List[torch.Tensor], rewards: List[np.float64]
@@ -366,11 +375,14 @@ class VPGAgent:
             _df["action"] = info["actions"]
             _df["weight"] = info["weights"]
             _df["reward"] = info["rewards"]
-            _df["average_return"] = info["average_return"]
-            _df["loss"] = info["loss"]
+            _df["steps"] = info["steps"]
+            _df["loss_policy"] = info["loss_policy"]
             _df["epoch"] = epoch
             df.append(_df)
-        return pd.concat(df)
+        df = pd.concat(df)
+        # Add index for episode
+        df["episodes"] = np.where(df["steps"] == 0, 1.0, 0.0).cumsum()  # type: ignore
+        return df
 
     @typing.no_type_check
     def _save(self) -> None:

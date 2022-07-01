@@ -44,6 +44,7 @@ class VPGGAEAgent(VPGAgent):
         # Heuristically, updating multiple times with lower learning rate seems to lead
         # to stabler learning
         self.value_func_save_name = value_func_save_name
+        self.kl_div = nn.KLDivLoss(reduce="batchmean")  # for monitoring learning
 
     def run(
         self,
@@ -69,7 +70,7 @@ class VPGGAEAgent(VPGAgent):
         """
 
         if self.save_dir is None:
-            logging.warning(
+            logger.warning(
                 f"Called method run(), but agent has save dir 'None'. Progress will not be saved."
             )
 
@@ -82,6 +83,8 @@ class VPGGAEAgent(VPGAgent):
 
         for epoch in range(num_epochs):
             render_epoch = render and (epoch % print_progress_after == 0)
+            _losses_value_func = []  # for logging; reset every epoch
+
             # Sample observations and rewards from one epoch
             (
                 batch_observations,
@@ -94,8 +97,10 @@ class VPGGAEAgent(VPGAgent):
 
             # Update policy
             self.optimizer.zero_grad()
-            loss = self._compute_loss(batch_observations, batch_actions, batch_weights)
-            loss.backward()
+            loss_policy = self._compute_loss(
+                batch_observations, batch_actions, batch_weights
+            )
+            loss_policy.backward()
             self.optimizer.step()
 
             # Update value function
@@ -106,13 +111,17 @@ class VPGGAEAgent(VPGAgent):
                 )
                 loss_value_func.backward()
                 self.value_func_optimizer.step()
-                kl_value_func = None  # TODO
+                # Log learning:
+                _losses_value_func.append(loss_value_func.item())
+                # ^ Not the cleverest way of storing, since this duplicates losses for all steps
+                # of the trajectory...
+                # kl_value_func = self.kl_div()
 
             if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
                     f"Epoch: {epoch} \t Returns: {average_return:.2f} \t "
-                    f"Steps: {np.mean(info['steps']):.2f} \t Policy loss: {loss:.2f} \t "
-                    f"Value function loss: {loss_value_func:.2f}"
+                    f"Steps: {np.mean(info['steps']):.2f} \t Policy loss: {loss_policy:.2f} \t "
+                    f"Value function loss: {loss_value_func.item():.2f}"
                 )
 
             if (epoch > 0) and (epoch % save_after_epochs == 0):
@@ -121,11 +130,9 @@ class VPGGAEAgent(VPGAgent):
                 logger.info("Done.")
 
             # Log run statistics for debugging
-            info["steps"] = len(batch_observations)
-            info["average_return"] = average_return
-            info["loss"] = loss.item()  # renamed to loss_policy _format_info_as_df
-            info["loss_value_func"] = loss_value_func.item()
-            info["kl_value_func"] = kl_value_func
+            info["loss_policy"] = loss_policy.item()
+            info["loss_value_func"] = _losses_value_func
+            # info["kl_value_func"] = kl_value_func
             infos.append(info)
 
         end = time.time()
@@ -207,11 +214,9 @@ class VPGGAEAgent(VPGAgent):
 
     def _format_info_as_df(self, infos: List[dict]) -> pd.DataFrame:
         """
-        Based on VPGAgent._format_info_as_df(). Renames `loss` to `loss_policy`
-        and adds statistics for value function updates.
+        Based on VPGAgent._format_info_as_df(). Adds statistics for value function updates.
         """
         df = super()._format_info_as_df(infos)
-        df.rename(columns={"loss": "loss_policy"}, inplace=True)
 
         # Add statistics for value function updates
         d_loss, d_kl = {}, {}
@@ -229,6 +234,7 @@ class VPGGAEAgent(VPGAgent):
         """Saves network parameters"""
 
         self.save_dir.mkdir(parents=True, exist_ok=True)
+        # TODO: add log for hyperparameters
         # Save current weights
         torch.save(self.policy.state_dict(), self.save_dir / self.save_name)
         torch.save(
