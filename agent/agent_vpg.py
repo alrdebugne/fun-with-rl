@@ -61,7 +61,9 @@ class VPGAgent:
 
     def play_episode(
         self, env, render: bool = False, exploit_only: bool = False
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[np.float64], int, int]:
+    ) -> Tuple[
+        List[torch.Tensor], List[torch.Tensor], List[np.float64], List[bool], int
+    ]:
         """
         Plays one episode from start to finish in `env`.
         For learning, `exploit_only` must be set to False. Set `exploit_only`
@@ -82,6 +84,7 @@ class VPGAgent:
         observations = []
         actions = []
         rewards = []
+        dones = []
         steps_episode = 0
         done = False
 
@@ -107,6 +110,7 @@ class VPGAgent:
             state_next = torch.as_tensor(state_next, dtype=torch.float32)
             actions.append(action)
             rewards.append(reward)
+            dones.append(done)
             state = state_next
             steps_episode += 1
 
@@ -114,11 +118,13 @@ class VPGAgent:
                 logger.info("Interrupted episode because it exceeded 2,000 steps.")
                 break
 
-        return observations, actions, rewards, done, steps_episode
+        return observations, actions, rewards, dones, steps_episode
 
+    # fmt: off
     def play_epoch(
         self, env, steps_per_epoch: int, render: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, float, dict]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, float, dict]:
+    # fmt: on
         """
         Samples trajectories inside `env` on-policy until a batch of size at least `steps_per_epoch` is assembled.
 
@@ -138,8 +144,9 @@ class VPGAgent:
         actions = []
         rewards = []
         returns = []
-        _scores = []
+        dones = []
         steps = []
+        _scores = []
 
         has_rendered_epoch = False
 
@@ -154,19 +161,20 @@ class VPGAgent:
                 obs_episode,
                 actions_episode,
                 rewards_episode,
-                done_episode,
+                dones_episode,
                 steps_episode,
             ) = self.play_episode(env, render=render_episode, exploit_only=False)
             # ^ exploit_only set to False because play_epoch is only called for learning
 
             # Compute returns for current episode
-            returns_episode = self._compute_returns(rewards_episode, done_episode)
+            returns_episode = self._compute_returns(rewards_episode)
 
             # Log run statistics for debugging
             observations.extend(obs_episode)
             actions.extend(actions_episode)
             rewards.extend(rewards_episode)
             returns.extend(returns_episode)
+            dones.extend(dones_episode)
             steps.extend(list(range(steps_episode)))
             _scores.append(sum(rewards_episode))
 
@@ -177,6 +185,7 @@ class VPGAgent:
             "actions": actions,
             "rewards": rewards,
             "returns": returns,
+            "dones": dones,
             "steps": steps,
         }
 
@@ -185,11 +194,12 @@ class VPGAgent:
         # actions: from list of n ints (1) to tensor batch (n)
         # rewards & weights: from list of n floats (1) to tensor batch (n)
         observations = torch.stack(observations)
-        actions = torch.as_tensor(actions)
-        rewards = torch.tensor(rewards)
-        returns = torch.tensor(returns)
+        actions = torch.as_tensor(actions, dtype=torch.int16)
+        rewards = torch.as_tensor(rewards, dtype=torch.float32)
+        returns = torch.as_tensor(returns, dtype=torch.float32)
+        dones = torch.as_tensor(dones, dtype=torch.uint8)
 
-        return observations, actions, rewards, returns, np.mean(_scores), info
+        return observations, actions, rewards, returns, dones, np.mean(_scores), info
 
     def run(
         self,
@@ -219,11 +229,10 @@ class VPGAgent:
                 f"Called method run(), but agent has save dir 'None'. Progress will not be saved."
             )
 
-        infos: List[dict] = []
-
         logger.info(
             f"Starting training for {num_epochs} epochs with parameters: ... (TODO)"
         )
+        infos: List[dict] = []
         start = time.time()
 
         for epoch in range(num_epochs):
@@ -234,13 +243,14 @@ class VPGAgent:
                 batch_actions,
                 batch_rewards,
                 batch_returns,
+                batch_dones,
                 average_score,
                 info,
             ) = self.play_epoch(env, steps_per_epoch, render_epoch)
 
             # Perform policy upgrade step
             self.optimizer.zero_grad()
-            loss_policy = self._compute_loss(
+            loss_policy = self._compute_loss_policy(
                 batch_observations, batch_actions, weights=batch_returns
             )
             # ^ for VPG, logit weights are just the discounted returns
@@ -259,7 +269,6 @@ class VPGAgent:
                 logger.info("Done.")
 
             # Log run statistics for debugging
-            info["weights"] = np.NaN  # TODO
             info["loss_policy"] = loss_policy.item()
             infos.append(info)
 
@@ -291,14 +300,14 @@ class VPGAgent:
         else:
             return Categorical(logits=logits).sample().item()
 
-    def _compute_returns(
-        self, rewards: List[np.float64], done_episode: int
-    ) -> List[np.float64]:
+    def _compute_returns(self, rewards: List[np.float64]) -> np.ndarray:
         """
         Computes total returns from state s_t as the discounted rewards-to-go,
-        i.e. R(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t')
+        i.e. R(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t').
 
-        TODO: Bootstrap in GAE if episode is not done yet
+        NOTE: this definition of returns introduces bias when episodes are terminated
+        before they are over. In A2C, we correct for this bias by bootstrapping an
+        estimate for returns of the last state, V_s(T+1). Here, we live with the bias.
         """
 
         # `rewards` contains the reward r(t) collected at every time step
@@ -314,7 +323,7 @@ class VPGAgent:
 
         return returns
 
-    def _compute_loss(
+    def _compute_loss_policy(
         self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
     ) -> torch.float32:
         """
@@ -366,7 +375,6 @@ class VPGAgent:
         for epoch, info in enumerate(infos):
             _df = pd.DataFrame()
             _df["action"] = info["actions"]
-            _df["weight"] = info["weights"]
             _df["reward"] = info["rewards"]
             _df["return"] = info["returns"]
             _df["steps"] = info["steps"]

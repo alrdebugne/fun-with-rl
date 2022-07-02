@@ -78,12 +78,11 @@ class VPGGAEAgent(VPGAgent):
                 f"Called method run(), but agent has save dir 'None'. Progress will not be saved."
             )
 
-        infos: List[dict] = []
-
         logger.info(
             f"Starting training for {num_epochs} epochs with parameters: ... (TODO)"
         )
         start = time.time()
+        infos: List[dict] = []
 
         for epoch in range(num_epochs):
             render_epoch = render and (epoch % print_progress_after == 0)
@@ -94,23 +93,29 @@ class VPGGAEAgent(VPGAgent):
                 batch_observations,
                 batch_actions,
                 batch_rewards,
-                batch_weights,
-                average_return,
+                batch_returns,
+                batch_dones,
+                average_score,
                 info,
             ) = self.play_epoch(env, steps_per_epoch, render_epoch)
 
-            # Two TODO:
-            # 1. Value function must be training on rewards-to-go, NOT advantage functions
-            # 2. When episode is truncated, must bootstrap expected return (using value func.)
-            # Some nice-to-have:
-            # a. Add entropy to learning updates to avoid converging too early
-            # b. Normalize advantages
+            # Ideas for improvement to test / implement:
+            # [ ] When episode is truncated, must bootstrap expected return (using value func.)
+            # [ ] Add entropy to learning updates to avoid converging too early
+            # [✔] Normalize advantages (improves stability)
 
             # Update policy
             self.optimizer.zero_grad()
-            loss_policy = self._compute_loss(
-                batch_observations, batch_actions, batch_weights
+            batch_advantages = self._compute_advantages(
+                batch_observations, batch_rewards, batch_dones, normalize=True
             )
+            loss_policy = self._compute_loss_policy(
+                batch_observations[:-1],
+                batch_actions[:-1],
+                weights=batch_advantages[:-1],
+            )
+            # ^ for A2C, logit weights are given by the advantage function
+            # ^ we ignore the last timestep because we cannot compute a TD-residual for it
             loss_policy.backward()
             self.optimizer.step()
 
@@ -118,19 +123,17 @@ class VPGGAEAgent(VPGAgent):
             for _ in range(self.value_func_iter_per_epoch):
                 self.value_func_optimizer.zero_grad()
                 loss_value_func = self._compute_loss_value_func(
-                    batch_observations, batch_rewards
+                    batch_observations, batch_returns
                 )
                 loss_value_func.backward()
                 self.value_func_optimizer.step()
+                # kl_value_func = self.kl_div()
                 # Log learning:
                 _losses_value_func.append(loss_value_func.item())
-                # ^ Not the cleverest way of storing, since this duplicates losses for all steps
-                # of the trajectory...
-                # kl_value_func = self.kl_div()
 
             if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
-                    f"Epoch: {epoch} \t Returns: {average_return:.2f} \t "
+                    f"Epoch: {epoch} \t Returns: {average_score:.2f} \t "
                     f"Steps: {np.mean(info['steps']):.2f} \t Policy loss: {loss_policy:.2f} \t "
                     f"Value function loss: {loss_value_func.item():.2f}"
                 )
@@ -144,11 +147,13 @@ class VPGGAEAgent(VPGAgent):
             info["loss_policy"] = loss_policy.item()
             info["loss_value_func"] = _losses_value_func
             # info["kl_value_func"] = kl_value_func
+
+            # TODO: add advantages & value function iteration to info
             infos.append(info)
 
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
-        logger.info(f"Final average return: {average_return:.2f}")
+        logger.info(f"Final average return: {average_score:.2f}")
         if self.save_dir:
             logger.info(f"Saving final state in {str(self.save_dir)}...")
             self._save()
@@ -157,7 +162,9 @@ class VPGGAEAgent(VPGAgent):
         # Format run statistics before returning
         return self._format_info_as_df(infos)
 
-    def _bellman_residuals(self, states: List[torch.Tensor], rewards: List[np.float64]):
+    def _td_residuals(
+        self, states: torch.Tensor, rewards: torch.Tensor, dones: torch.Tensor
+    ) -> np.ndarray:
         """
         Returns array Bellman residuals (d(t1), d(t2), ..., d(tn-1), where
             d(t) = -V(s_t) + r(t) + gamma * V(s_{t+1}) is the t-th Bellman residual,
@@ -166,43 +173,49 @@ class VPGGAEAgent(VPGAgent):
             gamma is a discount factor.
         """
         # Compute value functions V(s_t) for all states
-        state_values = self.value_func(torch.stack(states))
-        # ^ .stack converts list of n tensors (*state_space) to tensor (n, *state_space)
+        state_values = self.value_func(states)
 
         # Compute Bellman residuals
         n = len(rewards)
         deltas = np.zeros_like(rewards)
         for i in range(n):
             # fmt: off
-            deltas[i] = -state_values[i] + rewards[i] + self.gamma * (
-                state_values[i + 1] if i + 1 < n else 0
+            deltas[i] = -state_values[i] + rewards[i] + (1 - dones[i]) * self.gamma * (
+                state_values[i + 1] if i < n - 1 else 0
             )
+            # ^ last timestep ignored when updating policy
             # fmt: on
-
         return deltas
 
-    def _compute_weights(
-        self, states: List[torch.Tensor], rewards: List[np.float64]
-    ) -> List[np.float64]:
+    def _compute_advantages(
+        self,
+        states: torch.Tensor,
+        rewards: torch.Tensor,
+        dones: torch.Tensor,
+        normalize: bool,
+    ) -> torch.Tensor:
         """
         Returns weights using generalised advantage function GAE(gamma, lambda) as:
-            weight[t] = sum_{t'=t}^{T} (gamma*lambda)^{t'-t} * d(t'),
-        where d(t') is the Bellman residual discounted at rate gamma.
+            advantange[t] = sum_{t'=t}^{T} (gamma*lambda)^{t'-t} * d(t'),
+        where d(t') is the TD residual discounted at rate gamma.
         """
 
-        deltas = self._bellman_residuals(states, rewards)
+        deltas = self._td_residuals(states, rewards, dones)
         #
-        weights = np.zeros_like(rewards)
+        advantages = np.zeros_like(rewards)
         n = len(rewards)
         for i in reversed(range(n)):
-            weights[i] = deltas[i] + self.gamma * self._lambda * (
-                weights[i + 1] if i + 1 < n else 0
+            advantages[i] = deltas[i] + self.gamma * self._lambda * (
+                advantages[i + 1] if i + 1 < n else 0
             )
-
-        return weights
+        advantages = torch.as_tensor(advantages, dtype=torch.float32)
+        if not normalize:
+            return advantages
+        else:
+            return (advantages - advantages.mean()) / advantages.std()
 
     def _compute_loss_value_func(
-        self, states: List[torch.Tensor], rewards: List[np.float64]
+        self, states: torch.Tensor, returns: torch.Tensor
     ) -> torch.float32:
         """
         Computes the L2 loss of our value function over a batch of observations as
@@ -215,10 +228,8 @@ class VPGGAEAgent(VPGAgent):
         # Compute predictions of value model V(s_t) for all states
         predictions = self.value_func(states).squeeze()
         # Define target values as the discounted sum of rewards-to-go
-        targets = torch.as_tensor(
-            super()._compute_returns(rewards, 0), dtype=torch.float32
-        )
-        # TODO: replace 0 with actual done flag, and change _compute_returns as required
+        targets = returns
+        # TODO: bootstrap V[-1] if episodes don't complete
 
         # Return L2 loss (summed)
         return self.value_func_loss(predictions, targets)
