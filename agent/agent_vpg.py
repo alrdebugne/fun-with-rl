@@ -61,7 +61,7 @@ class VPGAgent:
 
     def play_episode(
         self, env, render: bool = False, exploit_only: bool = False
-    ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[np.float64], int]:
+    ) -> Tuple[List[torch.Tensor], List[torch.Tensor], List[np.float64], int, int]:
         """
         Plays one episode from start to finish in `env`.
         For learning, `exploit_only` must be set to False. Set `exploit_only`
@@ -71,6 +71,7 @@ class VPGAgent:
             observations: list of states observed at t
             actions: list of actions taken at t
             rewards: list of rewards earned at time t
+            done: whether env terminated at timestep T
             steps: length of episode (for logging)
 
         Note the returns have different types than `play_epoch`.
@@ -90,7 +91,6 @@ class VPGAgent:
             img = None
             reward = 0
 
-        start = time.time()
         while not done:
             if render:
                 img = render_in_jupyter(env, img, info=f"Current reward: {reward}")
@@ -100,7 +100,7 @@ class VPGAgent:
             # Pick next action
             action = self._act(state.unsqueeze(0), exploit_only)
             # Step environment forward with choosen action
-            state_next, reward, done, info = env.step(action)
+            state_next, reward, done, _ = env.step(action)
             # ^ .unsqueeze(0) turns tensor (*state_space) into a tensor (1, *state_space)
 
             # Format to pytorch tensors
@@ -114,13 +114,7 @@ class VPGAgent:
                 logger.info("Interrupted episode because it exceeded 2,000 steps.")
                 break
 
-        end = time.time()
-
-        logger.debug(
-            f"--- Computed trajectory in {int(end - start):.2f} s (reward: {sum(rewards)}, steps: {steps_episode})"
-        )
-
-        return observations, actions, rewards, steps_episode
+        return observations, actions, rewards, done, steps_episode
 
     def play_epoch(
         self, env, steps_per_epoch: int, render: bool = False
@@ -132,11 +126,9 @@ class VPGAgent:
             observations: tensor of states observed at t (size (num_steps, **`state_space`))
             actions: tensor of actions taken at t (size (num_steps))
             rewards: tensor of rewards collected at t (size (num_steps))
-            weights: tensor of weights by which to multiply the log(policy) terms (size (num_steps));
-                     cf. self.compute_weights() for the formulation
-            average return: average return over episodes
+            returns: tensor of total returns at step t, i.e. ≈ V(s_t) (size (num_steps))
+            average score: average of the sum(rewards) collected at the end of episodes
             info: dict logging run details (e.g. actions, rewards, weigts)
-            TODO: complete / structure
 
         Note the returns have different types than `play_episode`.
         """
@@ -144,10 +136,10 @@ class VPGAgent:
         steps_current = 0
         observations = []
         actions = []
-        weights = []
         rewards = []
+        returns = []
+        _scores = []
         steps = []
-        returns = []  # for total trajectory
 
         has_rendered_epoch = False
 
@@ -162,20 +154,21 @@ class VPGAgent:
                 obs_episode,
                 actions_episode,
                 rewards_episode,
+                done_episode,
                 steps_episode,
             ) = self.play_episode(env, render=render_episode, exploit_only=False)
             # ^ exploit_only set to False because play_epoch is only called for learning
 
-            # Compute weights from rewards
-            weights_episode = self._compute_weights(obs_episode, rewards_episode)
+            # Compute returns for current episode
+            returns_episode = self._compute_returns(rewards_episode, done_episode)
 
             # Log run statistics for debugging
             observations.extend(obs_episode)
             actions.extend(actions_episode)
             rewards.extend(rewards_episode)
+            returns.extend(returns_episode)
             steps.extend(list(range(steps_episode)))
-            weights.extend(weights_episode)
-            returns.append(np.sum(rewards_episode))
+            _scores.append(sum(rewards_episode))
 
             steps_current += steps_episode
 
@@ -183,7 +176,7 @@ class VPGAgent:
         info = {
             "actions": actions,
             "rewards": rewards,
-            "weights": weights,
+            "returns": returns,
             "steps": steps,
         }
 
@@ -194,11 +187,9 @@ class VPGAgent:
         observations = torch.stack(observations)
         actions = torch.as_tensor(actions)
         rewards = torch.tensor(rewards)
-        weights = torch.tensor(weights)
-        # Compute average return for epoch
-        average_return = np.mean(returns)
+        returns = torch.tensor(returns)
 
-        return observations, actions, rewards, weights, average_return, info
+        return observations, actions, rewards, returns, np.mean(_scores), info
 
     def run(
         self,
@@ -242,21 +233,23 @@ class VPGAgent:
                 batch_observations,
                 batch_actions,
                 batch_rewards,
-                batch_weights,
-                average_return,
+                batch_returns,
+                average_score,
                 info,
             ) = self.play_epoch(env, steps_per_epoch, render_epoch)
+
             # Perform policy upgrade step
             self.optimizer.zero_grad()
             loss_policy = self._compute_loss(
-                batch_observations, batch_actions, batch_weights
+                batch_observations, batch_actions, weights=batch_returns
             )
+            # ^ for VPG, logit weights are just the discounted returns
             loss_policy.backward()
             self.optimizer.step()
 
             if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
-                    f"Epoch: {epoch} \t Returns: {average_return:.2f} \t "
+                    f"Epoch: {epoch} \t Score: {average_score:.2f} \t "
                     f"Steps: {np.mean(info['steps']):.2f} \t Loss: {loss_policy:.2f}"
                 )
 
@@ -266,12 +259,13 @@ class VPGAgent:
                 logger.info("Done.")
 
             # Log run statistics for debugging
+            info["weights"] = np.NaN  # TODO
             info["loss_policy"] = loss_policy.item()
             infos.append(info)
 
         end = time.time()
         logger.info(f"Run complete (runtime: {round(end - start):d} s)")
-        logger.info(f"Final average return: {average_return:.2f}")
+        logger.info(f"Final average score: {average_score:.2f}")
         if self.save_dir:
             logger.info(f"Saving final state in {str(self.save_dir)}...")
             self._save()
@@ -297,29 +291,28 @@ class VPGAgent:
         else:
             return Categorical(logits=logits).sample().item()
 
-    def _compute_weights(
-        self, states: List[torch.Tensor], rewards: List[np.float64]
+    def _compute_returns(
+        self, rewards: List[np.float64], done_episode: int
     ) -> List[np.float64]:
         """
-        Computes weights for every stage transition t in the trajectory as the
-        rewards-to-go, i.e.  w(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t')
+        Computes total returns from state s_t as the discounted rewards-to-go,
+        i.e. R(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t')
 
-        NOTE: `states` is unused in VPG, but used in children classes that
-        implement more complex formulation to compute weights.
+        TODO: Bootstrap in GAE if episode is not done yet
         """
 
         # `rewards` contains the reward r(t) collected at every time step
-        # We want to compute the sum of (discounted) rewards that each action enabled,
+        # We want to compute the sum of (discounted) returns that each action enabled,
         # not including past rewards; i.e. we want
         #   w(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t')
 
         n = len(rewards)
-        weights = np.zeros_like(rewards)
+        returns = np.zeros_like(rewards)
         for i in reversed(range(n)):
-            weights[i] = rewards[i] + self.gamma * (weights[i + 1] if i + 1 < n else 0)
+            returns[i] = rewards[i] + self.gamma * (returns[i + 1] if i + 1 < n else 0)
             # ^ faster than looping forward with weights[i] = rewards[i:].sum()
 
-        return weights
+        return returns
 
     def _compute_loss(
         self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
@@ -375,13 +368,14 @@ class VPGAgent:
             _df["action"] = info["actions"]
             _df["weight"] = info["weights"]
             _df["reward"] = info["rewards"]
+            _df["return"] = info["returns"]
             _df["steps"] = info["steps"]
             _df["loss_policy"] = info["loss_policy"]
             _df["epoch"] = epoch
             df.append(_df)
         df = pd.concat(df)
         # Add index for episode
-        df["episodes"] = np.where(df["steps"] == 0, 1.0, 0.0).cumsum()  # type: ignore
+        df["episode"] = np.where(df["steps"] == 0, 1.0, 0.0).cumsum()  # type: ignore
         return df
 
     @typing.no_type_check

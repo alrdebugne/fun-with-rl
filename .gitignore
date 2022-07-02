@@ -5,6 +5,7 @@ logs/
 
 # Notebooks
 notebooks/
+*.ipynb_checkpoints
 
 # Caches
 __pycache__/

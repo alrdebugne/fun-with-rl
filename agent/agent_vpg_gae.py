@@ -99,6 +99,13 @@ class VPGGAEAgent(VPGAgent):
                 info,
             ) = self.play_epoch(env, steps_per_epoch, render_epoch)
 
+            # Two TODO:
+            # 1. Value function must be training on rewards-to-go, NOT advantage functions
+            # 2. When episode is truncated, must bootstrap expected return (using value func.)
+            # Some nice-to-have:
+            # a. Add entropy to learning updates to avoid converging too early
+            # b. Normalize advantages
+
             # Update policy
             self.optimizer.zero_grad()
             loss_policy = self._compute_loss(
@@ -209,9 +216,9 @@ class VPGGAEAgent(VPGAgent):
         predictions = self.value_func(states).squeeze()
         # Define target values as the discounted sum of rewards-to-go
         targets = torch.as_tensor(
-            super()._compute_weights(states, rewards), dtype=torch.float32
+            super()._compute_returns(rewards, 0), dtype=torch.float32
         )
-        # ^ super's weights are discounted rewards-to-go (cast to torch.tensor)
+        # TODO: replace 0 with actual done flag, and change _compute_returns as required
 
         # Return L2 loss (summed)
         return self.value_func_loss(predictions, targets)

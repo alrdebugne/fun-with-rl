@@ -16,7 +16,7 @@ from agent import SimpleMLPNetwork, VPGAgent
 # action_space = env.action_space.n
 
 vpgagent_kwargs = {
-    "gamma": 1.0,
+    "gamma": 0.999,
     "lr": 0.02,
     "policy_net": SimpleMLPNetwork,
     "policy_net_kwargs": {"hidden_sizes": [32]},
@@ -64,7 +64,9 @@ def test_vpg_agent_on_simple_envs(
     last_tenth_epoch = max(0, agent_run_kwargs["num_epochs"] - 10)
     avg_score = (
         infos.loc[infos["epoch"] >= last_tenth_epoch]
-        .groupby("epoch")["average_return"]
+        .groupby(["epoch", "episode"])["reward"]
+        .sum()
+        .groupby("epoch")
         .mean()
         .mean()
     )
