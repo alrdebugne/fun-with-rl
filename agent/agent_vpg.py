@@ -116,6 +116,7 @@ class VPGAgent:
 
             if steps_episode > 2000:
                 logger.info("Interrupted episode because it exceeded 2,000 steps.")
+                dones[-1] = True  # overwrite
                 break
 
         return observations, actions, rewards, dones, steps_episode
@@ -294,7 +295,7 @@ class VPGAgent:
         - `exploit_only` is False: returns a1 if p1 > p2, else returns a2
         """
         self.step += 1
-        logits = self.policy(state)
+        logits = self.policy(state.to(self.device))
         if exploit_only:
             return logits.argmax().item()
         else:
