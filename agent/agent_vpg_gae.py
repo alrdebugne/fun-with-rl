@@ -229,7 +229,7 @@ class VPGGAEAgent(VPGAgent):
         # Compute predictions of value model V(s_t) for all states
         predictions = self.value_func(states.to(self.device)).squeeze()
         # Define target values as the discounted sum of rewards-to-go
-        targets = returns
+        targets = returns.to(self.device)
         # TODO: bootstrap V[-1] if episodes don't complete
 
         # Return L2 loss (summed)
