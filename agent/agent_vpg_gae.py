@@ -101,6 +101,7 @@ class VPGGAEAgent(VPGAgent):
 
             # Ideas for improvement to test / implement:
             # [ ] When episode is truncated, must bootstrap expected return (using value func.)
+            #     - Don't know how to detect early trunaction mid-epoch?
             # [ ] Add entropy to learning updates to avoid converging too early
             # [✔] Normalize advantages (improves stability)
 
@@ -173,7 +174,7 @@ class VPGGAEAgent(VPGAgent):
             gamma is a discount factor.
         """
         # Compute value functions V(s_t) for all states
-        state_values = self.value_func(states)
+        state_values = self.value_func(states.to(self.device))
 
         # Compute Bellman residuals
         n = len(rewards)
@@ -226,7 +227,7 @@ class VPGGAEAgent(VPGAgent):
             sum of rewards-to-go
         """
         # Compute predictions of value model V(s_t) for all states
-        predictions = self.value_func(states).squeeze()
+        predictions = self.value_func(states.to(self.device)).squeeze()
         # Define target values as the discounted sum of rewards-to-go
         targets = returns
         # TODO: bootstrap V[-1] if episodes don't complete

@@ -353,7 +353,7 @@ class VPGAgent:
             """
             raise RuntimeError(e)
 
-        m = Categorical(logits=self.policy(states))  # m for multinomial
+        m = Categorical(logits=self.policy(states.to(self.device)))  # m for multinomial
         log_policy = m.log_prob(actions)
         # Breaking the steps down for torch newbies:
         # - `policy` returns the logits over the action space for a given state.
