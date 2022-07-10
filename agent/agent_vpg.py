@@ -366,7 +366,7 @@ class VPGAgent:
         # - The last step is to weigh the logs by the weights (e.g. rewards-to-go, advantage), then
         #   compute the batch average loss with .mean(). We add a minus sign because we're computing
         #   the total value of trajectory (the greater, the better), not a loss.
-        return -(log_policy * weights).mean()
+        return -(log_policy * weights.to(self.device)).mean()
 
     def _format_info_as_df(self, infos: List[dict]) -> pd.DataFrame:
         """
