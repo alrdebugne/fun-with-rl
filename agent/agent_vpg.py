@@ -114,10 +114,10 @@ class VPGAgent:
             state = state_next
             steps_episode += 1
 
-            if steps_episode > 2000:
-                logger.info("Interrupted episode because it exceeded 2,000 steps.")
-                dones[-1] = True  # overwrite
-                break
+            # if steps_episode > 2000:
+            #     logger.info("Interrupted episode because it exceeded 2,000 steps.")
+            #     dones[-1] = True  # overwrite
+            #     break
 
         return observations, actions, rewards, dones, steps_episode
 

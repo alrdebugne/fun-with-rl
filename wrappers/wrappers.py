@@ -133,10 +133,7 @@ class BufferWrapper(gym.ObservationWrapper):
 
 
 def make_env(env):
-    """
-    Simplify screen following original Atari paper
-    TODO: move to wrappers.py (or somewhere else with wrappers.py)
-    """
+    """Simplify screen following original Atari paper"""
     env = MaxAndSkipEnv(env)  # repeat action over four frames
     env = ProcessFrame84(env)  # size to 84 * 84 and greyscale
     env = ImageToPyTorch(env)  # convert to (C, H, W) for pytorch

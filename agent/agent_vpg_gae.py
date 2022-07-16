@@ -105,6 +105,18 @@ class VPGGAEAgent(VPGAgent):
             # [ ] Add entropy to learning updates to avoid converging too early
             # [✔] Normalize advantages (improves stability)
 
+            # Update value function
+            for _ in range(self.value_func_iter_per_epoch):
+                self.value_func_optimizer.zero_grad()
+                loss_value_func = self._compute_loss_value_func(
+                    batch_observations, batch_returns
+                )
+                loss_value_func.backward()
+                self.value_func_optimizer.step()
+                # kl_value_func = self.kl_div()
+                # Log learning:
+                _losses_value_func.append(loss_value_func.item())
+
             # Update policy
             self.optimizer.zero_grad()
             batch_advantages = self._compute_advantages(
@@ -120,18 +132,7 @@ class VPGGAEAgent(VPGAgent):
             loss_policy.backward()
             self.optimizer.step()
 
-            # Update value function
-            for _ in range(self.value_func_iter_per_epoch):
-                self.value_func_optimizer.zero_grad()
-                loss_value_func = self._compute_loss_value_func(
-                    batch_observations, batch_returns
-                )
-                loss_value_func.backward()
-                self.value_func_optimizer.step()
-                # kl_value_func = self.kl_div()
-                # Log learning:
-                _losses_value_func.append(loss_value_func.item())
-
+            # Log / plot
             if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
                     f"Epoch: {epoch} \t Returns: {average_score:.2f} \t "
