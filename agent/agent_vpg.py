@@ -19,6 +19,10 @@ logger = logging.getLogger("vpg-agent")
 class VPGAgent:
     """
     Agent class, using Vanilla Policy Gradient with rewards-to-go
+
+    TODO:
+    - [ ] Implement early stopping
+    - [ ] Improve logging (e.g. log policy upgrade steps)
     """
 
     def __init__(
@@ -251,8 +255,10 @@ class VPGAgent:
 
             # Perform policy upgrade step
             self.optimizer.zero_grad()
-            loss_policy = self._compute_loss_policy(
-                batch_observations, batch_actions, weights=batch_returns
+            # Normalise returns-to-go
+            batch_returns = (batch_returns - batch_returns.mean()) / (batch_returns.std() + 1e-7)
+            distrib_policy, loss_policy = self._compute_loss_policy(
+                batch_observations, batch_actions, batch_returns
             )
             # ^ for VPG, logit weights are just the discounted returns
             loss_policy.backward()
@@ -261,7 +267,8 @@ class VPGAgent:
             if (epoch > 0) and (epoch % print_progress_after == 0):
                 logger.info(
                     f"Epoch: {epoch} \t Score: {average_score:.2f} \t "
-                    f"Steps: {np.mean(info['steps']):.2f} \t Loss: {loss_policy:.2f}"
+                    f"Steps: {np.mean(info['steps']):.2f} \t Loss: {loss_policy.item():.2f} \t "
+                    f"Entropy: {distrib_policy.entropy().mean().item():.3f}"
                 )
 
             if (epoch > 0) and (epoch % save_after_epochs == 0):
@@ -271,6 +278,7 @@ class VPGAgent:
 
             # Log run statistics for debugging
             info["loss_policy"] = loss_policy.item()
+            info["entropy_policy"] = distrib_policy.entropy().mean().item()
             infos.append(info)
 
         end = time.time()
@@ -326,7 +334,8 @@ class VPGAgent:
 
     def _compute_loss_policy(
         self, states: torch.Tensor, actions: torch.Tensor, weights: torch.Tensor
-    ) -> torch.float32:
+    # ) -> Tuple[torch.distributions.Distribution, torch.float32]:
+    ):
         """
         Computes 'loss' for policy network on a batch of observations.
 
@@ -366,7 +375,7 @@ class VPGAgent:
         # - The last step is to weigh the logs by the weights (e.g. rewards-to-go, advantage), then
         #   compute the batch average loss with .mean(). We add a minus sign because we're computing
         #   the total value of trajectory (the greater, the better), not a loss.
-        return -(log_policy * weights.to(self.device)).mean()
+        return m, -(log_policy * weights.to(self.device)).mean()
 
     def _format_info_as_df(self, infos: List[dict]) -> pd.DataFrame:
         """
@@ -380,6 +389,7 @@ class VPGAgent:
             _df["return"] = info["returns"]
             _df["steps"] = info["steps"]
             _df["loss_policy"] = info["loss_policy"]
+            _df["entropy_policy"] = info["entropy_policy"]
             _df["epoch"] = epoch
             df.append(_df)
         df = pd.concat(df)

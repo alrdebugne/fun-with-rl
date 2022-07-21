@@ -122,10 +122,10 @@ class VPGGAEAgent(VPGAgent):
             batch_advantages = self._compute_advantages(
                 batch_observations, batch_rewards, batch_dones, normalize=True
             )
-            loss_policy = self._compute_loss_policy(
+            distrib_policy, loss_policy = self._compute_loss_policy(
                 batch_observations[:-1],
                 batch_actions[:-1],
-                weights=batch_advantages[:-1],
+                batch_advantages[:-1],
             )
             # ^ for A2C, logit weights are given by the advantage function
             # ^ we ignore the last timestep because we cannot compute a TD-residual for it
@@ -137,6 +137,7 @@ class VPGGAEAgent(VPGAgent):
                 logger.info(
                     f"Epoch: {epoch} \t Returns: {average_score:.2f} \t "
                     f"Steps: {np.mean(info['steps']):.2f} \t Policy loss: {loss_policy:.2f} \t "
+                    f"Policy entropy: {distrib_policy.entropy().mean().item():.3f}"
                     f"Value function loss: {loss_value_func.item():.2f}"
                 )
 
@@ -214,7 +215,7 @@ class VPGGAEAgent(VPGAgent):
         if not normalize:
             return advantages
         else:
-            return (advantages - advantages.mean()) / advantages.std()
+            return (advantages - advantages.mean()) / (advantages.std() + 1e-7)
 
     def _compute_loss_value_func(
         self, states: torch.Tensor, returns: torch.Tensor
