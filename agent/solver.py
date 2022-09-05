@@ -36,7 +36,7 @@ class FrameToActionNetwork(nn.Module):
         out = self.conv(torch.zeros(1, *shape))
         return int(np.prod(out.size()))
 
-    def forward(self, x) -> None:
+    def forward(self, x) -> torch.Tensor:
         conv_out = self.conv(x).view(x.size()[0], -1)
         return self.fc(conv_out)
 
