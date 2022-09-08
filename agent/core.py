@@ -1,6 +1,7 @@
+import abc
 import logging
 from pathlib import Path
-from typing import Optional, Union
+from typing import Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -21,6 +22,7 @@ class ActorCritic(nn.Module):
     Methods:
         `step`
         `act`
+        `update`
 
     Notes:
         `forward` (required for torch Modules) is defined on the networks `pi` and `vf`
@@ -78,7 +80,11 @@ class ActorCritic(nn.Module):
                 )
             )
 
-    def step(self, states: torch.Tensor):
+    # fmt: off
+    def step(
+        self, states: torch.Tensor
+    ) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
+    # fmt: on
         """
         Performs one step in current state s_t and returns the action, estimated value
         and log prob. of returned action.
@@ -96,6 +102,13 @@ class ActorCritic(nn.Module):
         # TODO: check if needs to call to self.device() on state, a
         return a.numpy(), v.numpy(), log_prob_a.numpy()
 
-    def act(self, states):
+    def act(self, states) -> npt.NDArray[np.float32]:
         """Samples next action from policy pi(a_t|s_t)"""
         return self.step(states)[0]
+
+    @abc.abstractmethod
+    def update(self, *args, **kwargs) -> None:  # type: ignore
+        """
+        Call to update policy and value func. networks.
+        Must be implemented by subclasses (e.g. PPOActorCritic).
+        """
