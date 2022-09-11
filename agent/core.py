@@ -1,7 +1,7 @@
 import abc
 import logging
 from pathlib import Path
-from typing import Tuple, Union
+from typing import List, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -80,14 +80,14 @@ class ActorCritic(nn.Module):
                 )
             )
 
-    # fmt: off
     def step(
         self, states: torch.Tensor
-    ) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
-    # fmt: on
+    ) -> Tuple[
+        npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]
+    ]:
         """
-        Performs one step in current state s_t and returns the action, estimated value
-        and log prob. of returned action.
+        Performs one step from states s_t and returns the actions, estimated values
+        and log prob. of those actions.
 
         Notes:
             `states` must be a stack of frames, i.e. of dimension (n, *state_space). If `states` is a single
@@ -112,3 +112,29 @@ class ActorCritic(nn.Module):
         Call to update policy and value func. networks.
         Must be implemented by subclasses (e.g. PPOActorCritic).
         """
+
+
+def combine_shape(n: int, shape: Union[int, List, Tuple, None] = None):
+    """Small utility function to combine n samples of dimension `shape` into a tuple"""
+    if shape is None:
+        return (n,)
+    return (n, shape) if np.isscalar(shape) else (n, *shape)  # type: ignore
+
+
+def discounted_cumsum(
+    array: npt.NDArray[np.float32], discount: float
+) -> npt.NDArray[np.float32]:
+    """
+    Computes cumulative sum of `array` discounted by `discount`.
+    To be used for computing rewards-to-go and GAE-lambda.
+
+    Ex.:
+        Inputs:
+            array = [x, y, z]; discount = gamma
+        Returns:
+            [x + gamma * y + gamma ** 2 * z,
+             y + gamma * z,
+             z]
+
+    """
+    raise NotImplementedError

@@ -13,7 +13,8 @@ class A2CPPO(ActorCritic):
 
     def update(self, buffer: dict) -> None:  # type: ignore
         """
-        Updates policy & value function networks using PPO.
+        Updates policy & value function networks using PPO. In the parent class ActorCritic,
+        these networks are defined as self.pi and self.vf, respectively.
 
         Inputs:
             buffer: experience buffer storing variables required for learning.

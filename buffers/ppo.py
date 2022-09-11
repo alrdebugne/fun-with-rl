@@ -1,18 +1,7 @@
 import numpy as np
 import numpy.typing as npt
-import logging
-from typing import List, Tuple, Union
 
-
-def combine_shape(n: int, shape: Union[int, List, Tuple, None] = None):
-    """Small utility function to combine n samples of dimension `shape` into a tuple"""
-    if shape is None:
-        return (n,)
-    return (n, shape) if np.isscalar(shape) else (n, *shape)  # type: ignore
-
-
-def compute_rewards_to_go() -> None:
-    pass
+from agent.core import combine_shape, discounted_cumsum
 
 
 class PPOBuffer:
@@ -64,8 +53,26 @@ class PPOBuffer:
         # Increment pointer
         self.pointer += 1
 
-    def finish_path(self) -> None:
-        """ """
+    def finish_path(self, last_value: float = 0.0) -> None:
+        """
+        To be called at the end of a trajectory, or when a trajectory is terminated early
+        (e.g. when an epoch ends, or during timeout).
+
+        Computes rewards-to-go and (normalised) advantages for the trajectory (using GAE-lambda).
+        When a trajectory is cut off early, uses the estimated value function for the last state,
+        `last_value` V(s_T), to bootstrap the rewards-to-go calculation.
+        """
+        path_slice = slice(self.path_start_index, self.pointer)
+        path_rewards = self.rewards[path_slice]
+        path_values = self.est_values[path_slice]
+
+        # TODO:
+        # 1. Calculate discounted rewards-to-go
+        # 2. Calculate GAE-lambda
+
+        # Update index for start of next path
+        self.path_start_index = self.pointer
+
         raise NotImplementedError
 
     def get(self) -> dict:
