@@ -114,7 +114,7 @@ class ActorCritic(nn.Module):
         """
 
 
-def combine_shape(n: int, shape: Union[int, List, Tuple, None] = None):
+def combine_shape(n: int, shape: Union[int, List, Tuple, None] = None) -> Tuple:
     """Small utility function to combine n samples of dimension `shape` into a tuple"""
     if shape is None:
         return (n,)
@@ -137,4 +137,8 @@ def discounted_cumsum(
              z]
 
     """
-    raise NotImplementedError
+    n = len(array)
+    cumsums = np.zeros_like(array)
+    for i in reversed(range(n)):
+        cumsums[i] = array[i] + discount * (cumsums[i + 1] if i + 1 < n else 0)
+    return cumsums
