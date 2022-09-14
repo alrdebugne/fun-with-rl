@@ -35,10 +35,8 @@ class PPOBuffer:
         self.logp_actions = np.zeros(size, dtype=np.float32)
 
         # ~~~ Initialise pointers ~~~
-        self.pointer = 0  # current pointer in buffer
-        self.path_start_index = (
-            0  # pointer for start of current path (needed for termination)
-        )
+        self.pointer = 0  # points to next free slot in buffer
+        self.path_start_pointer = 0  # points to start of current path
 
     def store(self, obs, act, rew, val, logp) -> None:
         """Appends one timestep of agent-env. interaction to the buffer"""
@@ -58,22 +56,29 @@ class PPOBuffer:
         To be called at the end of a trajectory, or when a trajectory is terminated early
         (e.g. when an epoch ends, or during timeout).
 
-        Computes rewards-to-go and (normalised) advantages for the trajectory (using GAE-lambda).
+        Computes rewards-to-go and (normalised) advantages for the trajectory (using lambda-GAE).
         When a trajectory is cut off early, uses the estimated value function for the last state,
         `last_value` V(s_T), to bootstrap the rewards-to-go calculation.
         """
-        path_slice = slice(self.path_start_index, self.pointer)
-        path_rewards = self.rewards[path_slice]
-        path_values = self.est_values[path_slice]
+        path_slice = slice(self.path_start_pointer, self.pointer)
+        # Retrieve rewards and est. values for current path, then add `last_value` as bootstrap
+        # (to avoid underestimation if path terminates early). Note `last_value = 0` when the
+        # path terminates naturally, so we don't introduce bias there.
+        path_rewards = np.append(self.rewards[path_slice], last_value)
+        path_values = np.append(self.est_values[path_slice], last_value)
 
-        # TODO:
-        # 1. Calculate discounted rewards-to-go
-        # 2. Calculate GAE-lambda
+        # Calculate discounted rewards-to-go
+        path_rewards_to_go = discounted_cumsum(path_rewards, self.gamma)[:-1]
+        self.rewards_to_go[path_slice] = path_rewards_to_go
+        # Calculate lambda-GAE
+        path_deltas = (
+            path_rewards[:-1] + self.gamma * path_values[1:] - path_values[:-1]
+        )
+        path_advantages = discounted_cumsum(path_deltas, self.gamma * self._lambda)
+        self.advantages[path_slice] = path_advantages
 
         # Update index for start of next path
-        self.path_start_index = self.pointer
-
-        raise NotImplementedError
+        self.path_start_pointer = self.pointer
 
     def get(self) -> dict:
         """

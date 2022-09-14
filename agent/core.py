@@ -34,10 +34,8 @@ class ActorCritic(nn.Module):
         state_space: npt.NDArray[np.float64],
         action_space: int,
         # ~ Actor variables ~
-        gamma: float,
         policy_lr: float,
         # ~ Critic variables ~
-        _lambda: float,
         value_func_lr: float,
         # ~ Where to save / read savestates ~
         save_dir: Union[Path, None] = None,
@@ -54,13 +52,11 @@ class ActorCritic(nn.Module):
 
         # ~~~ Actor: define policy network ~~~
         self.pi = FrameToActionNetwork(input_shape=state_space, n_actions=action_space)
-        self.gamma = gamma
         self.pi_optimizer = torch.optim.Adam(self.pi.parameters(), lr=policy_lr)
 
         # ~~~ Critic: define value function network ~~~
         self.vf = FrameToActionNetwork(input_shape=state_space, n_actions=1)
         # ^ `n_actions = 1` returns a float (suitable for value func. approx.)
-        self._lambda = _lambda
         self.vf_optimizer = torch.optim.Adam(self.vf.parameters(), lr=value_func_lr)
 
         # ~~~ Loading from previous runs (if applies) ~~~
