@@ -1,5 +1,7 @@
 import numpy as np
 import numpy.typing as npt
+import torch
+from typing import Dict
 
 from agent.core import combine_shape, discounted_cumsum
 
@@ -80,17 +82,39 @@ class PPOBuffer:
         # Update index for start of next path
         self.path_start_pointer = self.pointer
 
-    def get(self) -> dict:
+    def get(self) -> Dict[str, torch.Tensor]:
         """
-        Returns batch of agent-env. interactions from the buffer (for learning) & resets pointer
-        for next trajectory.
+        Returns a batch of agent-env. interactions from the buffer (for learning) as torch.Tensors
+        & resets pointers for next trajectory.
 
-        Returns:
+        Returns: a dict with:
             observations
             actions
-            rewards-to-go
+            returns, i.e. rewards-to-go
             advantages
             action log-probs, i.e. log[pi(a_t|s_t)]
+            predicted values, i.e. V_{pred}(s_t)
         """
+        assert self.pointer == self.size  # buffer must be full
+
+        # ~~ Prepare data for output ~~
+        # Normalise advantages
+        self.advantages = (self.advantages - self.advantages.mean()) / (
+            self.advantages.std() + 1e-7
+        )
+        data = {
+            "obs": self.observations,
+            "act": self.actions,
+            "ret": self.rewards_to_go,
+            "adv": self.advantages,
+            "logp_a": self.logp_actions,
+            "vf": self.est_values,
+        }
+        # Convert to tensors
+        data = {k: torch.as_tensor(v, dtype=torch.float32) for k, v in data.items()}
+
+        # Reset pointers
         self.pointer = 0
-        raise NotImplementedError
+        self.path_start_pointer = 0
+
+        return data
