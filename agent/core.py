@@ -59,6 +59,13 @@ class ActorCritic(nn.Module):
         # ^ `n_actions = 1` returns a float (suitable for value func. approx.)
         self.vf_optimizer = torch.optim.Adam(self.vf.parameters(), lr=value_func_lr)
 
+        # Log number of variables
+        num_variables = tuple(
+            sum([np.prod(p.shape) for p in module.parameters()])
+            for module in [self.pi, self.vf]
+        )
+        logger.info("Number of parameters: \t pi: %d, \t V: %d" % num_variables)
+
         # ~~~ Loading from previous runs (if applies) ~~~
         if self.is_pretrained:
             logger.info("Loading weights from previous runs...")

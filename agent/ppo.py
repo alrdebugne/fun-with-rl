@@ -21,8 +21,8 @@ class A2CPPO(ActorCritic):
             Must contain the following:
                 observations s(t)
                 actions a(t)
-                rewards-to-go R(t)
+                returns R(t)
                 advantages A(t)
-                log-probs log[pi(a_t|s_t)]
+                log-probs log[pi(a_t|s_t)] (from pi used for sampling)
         """
         raise NotImplementedError

@@ -1,9 +1,12 @@
+import logging
 import numpy as np
 import numpy.typing as npt
 import torch
 from typing import Dict
 
 from agent.core import combine_shape, discounted_cumsum
+
+logger = logging.getLogger("ppo-buffer")
 
 
 class PPOBuffer:
@@ -29,7 +32,7 @@ class PPOBuffer:
 
         # ~~~ Initialise buffers ~~~
         self.observations = np.zeros(combine_shape(size, state_space), dtype=np.float32)
-        self.actions = np.zeros(combine_shape(size, action_space), dtype=np.float32)
+        self.actions = np.zeros(size, dtype=np.float32)
         self.rewards = np.zeros(size, dtype=np.float32)
         self.rewards_to_go = np.zeros(size, dtype=np.float32)
         self.advantages = np.zeros(size, dtype=np.float32)
