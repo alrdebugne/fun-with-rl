@@ -54,7 +54,7 @@ class ActorCritic(nn.Module):
         # Only two cases are supported so far:
         # * Input = frame(s): use CategoricalCNN
         # * Input = 1D-array(s): use CategoricalMLP
-        network_class: nn.Module
+        network_class: nn.Module  # forward declare for mypy
         if len(state_space) == 3:
             network_class = CategoricalCNN
         elif len(state_space) == 1:
