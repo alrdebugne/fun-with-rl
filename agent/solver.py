@@ -4,17 +4,13 @@ import torch
 import torch.nn as nn
 
 
-class FrameToActionNetwork(nn.Module):
+class CategoricalCNN(nn.Module):
     """
-    Simple network taking as input a video frame (or stack of frames) and outputting
-    a distribution over the possible action space.
+    Simple CNN taking as input a frame (or stack of frames) and returning
+    a distribution over the possible actions.
     """
 
-    # TODO: add dropout layers
-
-    def __init__(
-        self, input_shape: Tuple[int, int, int], n_actions: int, dropout: float = 0.0
-    ) -> None:
+    def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
         super().__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(
@@ -23,8 +19,8 @@ class FrameToActionNetwork(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
             nn.ReLU(),
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-            nn.ReLU(),
+            # nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            # nn.ReLU(),
         )
 
         conv_out_size = self._get_conv_out(input_shape)
@@ -33,29 +29,41 @@ class FrameToActionNetwork(nn.Module):
         )
 
     def _get_conv_out(self, shape) -> int:
+        """Util to get output shape at the end of the CNN"""
         out = self.conv(torch.zeros(1, *shape))
         return int(np.prod(out.size()))
 
     def forward(self, x) -> torch.Tensor:
+        """Forward pass through network"""
         conv_out = self.conv(x).view(x.size()[0], -1)
         return self.fc(conv_out)
 
 
-class SimpleMLPNetwork(nn.Module):
+class CategoricalMLP(nn.Module):
     """
-    Simple MLP, mainly for testing purposes.
+    Simple MLP taking as input a 1D-array (or stack of 1D-arrays) and returning
+    a distribution over the possible actions.
     """
 
     def __init__(
-        self, input_shape: int, n_actions: int, hidden_sizes: Union[int, List[int]]
+        self,
+        input_shape: int,
+        n_actions: int,
+        hidden_sizes: Union[int, List[int]] = [32],
     ):
         super().__init__()
+
+        # Unpack arrays of dimension 1
+        if isinstance(input_shape, (list, tuple)) and len(input_shape) == 1:
+            input_shape = input_shape[0]
+        if isinstance(n_actions, (list, tuple)) and len(n_actions) == 1:
+            n_actions = n_actions[0]
 
         if isinstance(input_shape, (list, tuple)) or isinstance(
             n_actions, (list, tuple)
         ):
             e = (
-                "SimpleMLPNetowrk can only take one-dimensional input and output shapes "
+                "CategoricalMLP can only take one-dimensional input and output shapes "
                 f"but got {input_shape} and {n_actions} instead (I/O)."
             )
             raise NotImplementedError(e)

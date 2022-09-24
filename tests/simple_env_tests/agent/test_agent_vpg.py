@@ -8,7 +8,7 @@ from copy import deepcopy
 import pytest
 import gym
 
-from agent import SimpleMLPNetwork, VPGAgent
+from agent import CategoricalMLP, VPGAgent
 
 # # env = gym.make("CartPole-v1")
 # env = gym.make("LunarLander-v2")
@@ -18,7 +18,7 @@ from agent import SimpleMLPNetwork, VPGAgent
 vpgagent_kwargs = {
     "gamma": 0.999,
     "lr": 0.02,
-    "policy_net": SimpleMLPNetwork,
+    "policy_net": CategoricalMLP,
     "policy_net_kwargs": {"hidden_sizes": [32]},
 }
 vpg_agent_run_kwargs_cartpole = {

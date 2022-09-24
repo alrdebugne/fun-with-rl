@@ -42,12 +42,12 @@ agent = VPGGAEAgent(
     # Policy net params
     gamma=0.99,
     lr=0.02,
-    policy_net=SimpleMLPNetwork,
+    policy_net=CategoricalMLP,
     policy_net_kwargs={"input_shape": observation_space, "n_actions": action_space, "hidden_sizes": [32]},
     save_dir=Path("./data/gaecartpole-v1"),
     save_name=Path("policy.pt"),
     # Value func net params
-    value_func_net=SimpleMLPNetwork,
+    value_func_net=CategoricalMLP,
     value_func_net_kwargs={"input_shape": observation_space, "n_actions": 1, "hidden_sizes": [32]},
     value_func_lambda=0.96,
     value_func_lr=0.02,

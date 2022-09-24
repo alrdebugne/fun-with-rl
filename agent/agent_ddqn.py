@@ -10,7 +10,7 @@ import numpy.typing as npt
 import torch
 import torch.nn as nn
 
-from .solver import FrameToActionNetwork
+from .solver import CategoricalCNN
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ddqn-agent")

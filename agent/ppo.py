@@ -48,7 +48,7 @@ class A2CPPO(ActorCritic):
         advantages = data["adv"]
         logp_a_old = data["logp_a"]  # based on old policy pi
 
-        # Compute logp_a under current policy pi
+        # Compute log probs. under current policy pi
         pi_new = Categorical(logits=self.pi(states))
         logp_a_new = pi_new.log_prob(actions)
         # Compute policy loss under PPO
@@ -61,7 +61,7 @@ class A2CPPO(ActorCritic):
         entropy = pi_new.entropy().mean().item()
         return pi_loss, {"kl_div": kl_approx, "entropy": entropy}
 
-    def compute_loss_vf(self, data: Dict[str, torch.Tensor]) -> torch.Tensor:
+    def _compute_loss_vf(self, data: Dict[str, torch.Tensor]) -> torch.Tensor:
         """
         Compute loss of value function V(s_t) as MSE of (observed) returns and
         values predicted by the critic.

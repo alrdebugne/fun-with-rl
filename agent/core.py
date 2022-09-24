@@ -9,7 +9,7 @@ import torch
 from torch.distributions import Categorical
 import torch.nn as nn
 
-from agent import FrameToActionNetwork
+from agent import CategoricalCNN, CategoricalMLP
 
 logger = logging.getLogger("agent-core")
 
@@ -20,9 +20,9 @@ class ActorCritic(nn.Module):
     Works for categorical outputs only.
 
     Methods:
-        `step`
-        `act`
-        `update`
+        `step`: steps through environment once and returns action, est. value & log probs
+        `act`: steps through environment once and returns action
+        `update`: performs update on the policy and value networks
 
     Notes:
         `forward` (required for torch Modules) is defined on the networks `pi` and `vf`
@@ -50,12 +50,28 @@ class ActorCritic(nn.Module):
         self.save_dir = save_dir
         self.is_pretrained = is_pretrained
 
+        # Define type of network that's required based on the input data
+        # Only two cases are supported so far:
+        # * Input = frame(s): use CategoricalCNN
+        # * Input = 1D-array(s): use CategoricalMLP
+        network_class: nn.Module
+        if len(state_space) == 3:
+            network_class = CategoricalCNN
+        elif len(state_space) == 1:
+            network_class = CategoricalMLP
+        else:
+            e = (
+                f"Only `state_space`s of dimensions 1 (1D-arrays) or 3 (stack of frames) "
+                f"are supported, but got state_space {state_space}"
+            )
+            raise AssertionError(e)
+
         # ~~~ Actor: define policy network ~~~
-        self.pi = FrameToActionNetwork(input_shape=state_space, n_actions=action_space)
+        self.pi = network_class(input_shape=state_space, n_actions=action_space)
         self.pi_optimizer = torch.optim.Adam(self.pi.parameters(), lr=policy_lr)
 
         # ~~~ Critic: define value function network ~~~
-        self.vf = FrameToActionNetwork(input_shape=state_space, n_actions=1)
+        self.vf = network_class(input_shape=state_space, n_actions=1)
         # ^ `n_actions = 1` returns a float (suitable for value func. approx.)
         self.vf_optimizer = torch.optim.Adam(self.vf.parameters(), lr=value_func_lr)
 
