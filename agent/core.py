@@ -1,6 +1,7 @@
 import abc
 import logging
 from pathlib import Path
+import typing
 from typing import List, Tuple, Union
 
 import numpy as np
@@ -101,9 +102,7 @@ class ActorCritic(nn.Module):
 
     def step(
         self, states: torch.Tensor
-    ) -> Tuple[
-        npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]
-    ]:
+    ) -> Tuple[npt.NDArray[np.float32], npt.NDArray[np.float32], npt.NDArray[np.float32]]:
         """
         Performs one step from states s_t and returns the actions, estimated values
         and log prob. of those actions.
@@ -124,6 +123,15 @@ class ActorCritic(nn.Module):
     def act(self, states) -> npt.NDArray[np.float32]:
         """Samples next action from policy pi(a_t|s_t)"""
         return self.step(states)[0]
+
+    @typing.no_type_check
+    def save(self) -> None:
+        """Saves network parameters"""
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        # Save hyperparameters & weights
+        # TODO: hyperparameters
+        torch.save(self.pi.state_dict(), self.save_dir / Path("pi.pt"))
+        torch.save(self.vf.state_dict(), self.save_dir / Path("vf.pt"))
 
     @abc.abstractmethod
     def update(self, *args, **kwargs) -> None:  # type: ignore

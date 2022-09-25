@@ -12,20 +12,25 @@ class CategoricalCNN(nn.Module):
 
     def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
         super().__init__()
+        # DDQN structure that learnt SMB:
+        # Nx4x84x84 - 32C8S4 - ReLU - 64C4S2 - ReLU - 64C3S1 - FC512 - ReLu - FC(n_actions)
+        # Too large for A2C/PPO (I presume because of its lower sample efficiency)
+        # Trying smaller networks instead...
+
+        # ~~ Define convolutional layers ~~
         self.conv = nn.Sequential(
-            nn.Conv2d(
-                in_channels=input_shape[0], out_channels=32, kernel_size=8, stride=4
-            ),
+            nn.Conv2d(in_channels=input_shape[0], out_channels=16, kernel_size=8, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
             nn.ReLU(),
-            # nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-            # nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1),
+            nn.ReLU(),
         )
 
+        # ~~ Define fully connected layers ~~
         conv_out_size = self._get_conv_out(input_shape)
         self.fc = nn.Sequential(
-            nn.Linear(conv_out_size, 512), nn.ReLU(), nn.Linear(512, n_actions)
+            nn.Linear(conv_out_size, 64), nn.ReLU(), nn.Linear(64, n_actions)
         )
 
     def _get_conv_out(self, shape) -> int:
@@ -35,7 +40,7 @@ class CategoricalCNN(nn.Module):
 
     def forward(self, x) -> torch.Tensor:
         """Forward pass through network"""
-        conv_out = self.conv(x).view(x.size()[0], -1)
+        conv_out = self.conv(x).view(x.size()[0], -1)  # flatten
         return self.fc(conv_out)
 
 
@@ -59,11 +64,9 @@ class CategoricalMLP(nn.Module):
         if isinstance(n_actions, (list, tuple)) and len(n_actions) == 1:
             n_actions = n_actions[0]
 
-        if isinstance(input_shape, (list, tuple)) or isinstance(
-            n_actions, (list, tuple)
-        ):
+        if isinstance(input_shape, (list, tuple)) or isinstance(n_actions, (list, tuple)):
             e = (
-                "CategoricalMLP can only take one-dimensional input and output shapes "
+                f"CategoricalMLP can only take one-dimensional input and output shapes "
                 f"but got {input_shape} and {n_actions} instead (I/O)."
             )
             raise NotImplementedError(e)
@@ -81,4 +84,5 @@ class CategoricalMLP(nn.Module):
         self.mlp = nn.Sequential(*layers)
 
     def forward(self, x) -> torch.Tensor:
+        """Forward pass through network"""
         return self.mlp(x)
