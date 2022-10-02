@@ -76,14 +76,16 @@ class PPOBuffer:
         path_rewards_to_go = discounted_cumsum(path_rewards, self.gamma)[:-1]
         self.rewards_to_go[path_slice] = path_rewards_to_go
         # Calculate lambda-GAE
-        path_deltas = path_rewards[:-1] + self.gamma * path_values[1:] - path_values[:-1]
+        path_deltas = (
+            path_rewards[:-1] + self.gamma * path_values[1:] - path_values[:-1]
+        )
         path_advantages = discounted_cumsum(path_deltas, self.gamma * self._lambda)
         self.advantages[path_slice] = path_advantages
 
         # Update index for start of next path
         self.path_start_pointer = self.pointer
 
-    def get(self, device: str) -> Dict[str, torch.Tensor]:
+    def get(self) -> Dict[str, torch.Tensor]:
         """
         Returns a batch of agent-env. interactions from the buffer (for learning) as torch.Tensors
         & resets pointers for next trajectory.
@@ -112,9 +114,7 @@ class PPOBuffer:
             "vf": self.est_values,
         }
         # Convert to tensors
-        data = {
-            k: torch.as_tensor(v, dtype=torch.float32).to(device) for k, v in data.items()
-        }
+        data = {k: torch.as_tensor(v, dtype=torch.float32) for k, v in data.items()}
 
         # Reset pointers
         self.pointer = 0
