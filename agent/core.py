@@ -118,7 +118,7 @@ class ActorCritic(nn.Module):
             v = self.vf(states)
             log_prob_a = pi.log_prob(a)
         # TODO: check if needs to call to self.device() on state, a
-        return a.numpy(), v.numpy(), log_prob_a.numpy()
+        return a.cpu().numpy(), v.cpu().numpy(), log_prob_a.cpu().numpy()
 
     def act(self, states) -> npt.NDArray[np.float32]:
         """Samples next action from policy pi(a_t|s_t)"""
