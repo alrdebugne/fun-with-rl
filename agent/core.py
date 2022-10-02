@@ -69,11 +69,13 @@ class ActorCritic(nn.Module):
 
         # ~~~ Actor: define policy network ~~~
         self.pi = network_class(input_shape=state_space, n_actions=action_space)
+        self.pi.to(self.device)
         self.pi_optimizer = torch.optim.Adam(self.pi.parameters(), lr=policy_lr)
 
         # ~~~ Critic: define value function network ~~~
         self.vf = network_class(input_shape=state_space, n_actions=1)
         # ^ `n_actions = 1` returns a float (suitable for value func. approx.)
+        self.vf.to(self.device)
         self.vf_optimizer = torch.optim.Adam(self.vf.parameters(), lr=value_func_lr)
 
         # Log number of variables
