@@ -13,12 +13,9 @@ class CategoricalCNN(nn.Module):
     def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
         super().__init__()
         # DDQN structure that learnt SMB:
-        # (1) Nx4x84x84 - 32C8S4 - ReLU - 64C4S2 - ReLU - 64C3S1 - FC512 - ReLu - FC(n_actions)
-        #     ~ 2.65M parameters
-        #     too large for A2C/PPO (presumably because of its lower sample efficiency)
+        # Nx4x84x84 - 32C8S4 - ReLU - 64C4S2 - ReLU - 64C3S1 - FC512 - ReLu - FC(n_actions)
+        # Too large for A2C/PPO (I presume because of its lower sample efficiency)
         # Trying smaller networks instead...
-        # (2) Nx4x84x84 - 16C8S4 - ReLU - 32C4S2 - ReLU - 32C3S1 - FC64 - ReLu - FC(n_actions)
-        #     ~ 122k parameters
 
         # ~~ Define convolutional layers ~~
         self.conv = nn.Sequential(
