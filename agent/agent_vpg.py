@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from utils import render_in_jupyter
+from utils.utils import render_in_jupyter
 
 logger = logging.getLogger("vpg-agent")
 
