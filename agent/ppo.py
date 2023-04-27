@@ -28,7 +28,9 @@ class A2CPPO(ActorCritic):
                 advantages A(t)
                 log-probs log[pi(a_t|s_t)] (from pi used for sampling)
         """
+        # cf. Colab notebook
         raise NotImplementedError
+        
 
     def _compute_loss_pi(
         self, data: Dict[str, torch.Tensor], epsilon: float = 0.2
