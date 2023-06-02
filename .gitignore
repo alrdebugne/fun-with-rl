@@ -1,10 +1,16 @@
 # Save states & logs
 data/
-gym-videos/
+videos/
 logs/
+
+# Virtual environments
+# (requirements file in progress...)
+.venv
+venv
 
 # Notebooks
 notebooks/
+benchmarks/
 *.ipynb_checkpoints
 
 # Caches

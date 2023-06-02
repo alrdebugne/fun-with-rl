@@ -5,11 +5,11 @@ Based on OpenAI baselines: https://github.com/openai/baselines/blob/master/basel
 import collections
 import cv2
 import numpy as np
-from typing import Optional
+from typing import *
 
-import gym
-from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
-from nes_py.wrappers import JoypadSpace
+import gymnasium as gym
+# from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
+# from nes_py.wrappers import JoypadSpace
 
 
 class MaxAndSkipEnv(gym.Wrapper):
@@ -22,7 +22,6 @@ class MaxAndSkipEnv(gym.Wrapper):
         super(MaxAndSkipEnv, self).__init__(env)
         # Most recent raw observations (for max pooling across time steps)
         self._obs_buffer = collections.deque(maxlen=2)
-        # ^ think of deque-s like lists with O(1) for pop and append
         self._skip = skip
 
     def step(self, action):
@@ -41,9 +40,11 @@ class MaxAndSkipEnv(gym.Wrapper):
     def reset(self):
         """Clear past frame buffer and init to first obs"""
         self._obs_buffer.clear()
-        obs = self.env.reset()
+        temp = self.env.reset()
+        print(f"temp:\n{temp}")
+        obs, info = self.env.reset()
         self._obs_buffer.append(obs)
-        return obs
+        return obs, info
 
 
 class ProcessFrame84(gym.ObservationWrapper):
@@ -123,7 +124,8 @@ class BufferWrapper(gym.ObservationWrapper):
 
     def reset(self):
         self.buffer = np.zeros_like(self.observation_space.low, dtype=self.dtype)
-        return self.observation(self.env.reset())
+        obs = self.env.reset()
+        return self.observation(obs)
 
     def observation(self, observation):
         """Update self.buffer by shifting old frames left, then adding new frame"""
@@ -142,14 +144,14 @@ def make_env(env):
     return env
 
 
-def make_nes_env(env, actions: Optional[str] = None):
-    """Special wrapper for NES games"""
-    env = make_env(env)
-    actions = actions or RIGHT_ONLY
-    if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
-        e = (
-            "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, "
-            f"but received {actions} instead."
-        )
-        raise ValueError(e)
-    return JoypadSpace(env, actions)
+# def make_nes_env(env, actions: Optional[str] = None):
+#     """Special wrapper for NES games"""
+#     env = make_env(env)
+#     actions = actions or RIGHT_ONLY
+#     if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
+#         e = (
+#             "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, "
+#             f"but received {actions} instead."
+#         )
+#         raise ValueError(e)
+#     return JoypadSpace(env, actions)
