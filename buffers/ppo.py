@@ -4,7 +4,7 @@ import numpy.typing as npt
 import torch
 from typing import Dict
 
-from agent.core import combine_shape, discounted_cumsum
+from agent.ac import combine_shape, discounted_cumsum
 
 logger = logging.getLogger("ppo-buffer")
 

@@ -5,7 +5,7 @@ Based on OpenAI baselines: https://github.com/openai/baselines/blob/master/basel
 import collections
 import cv2
 import numpy as np
-from typing import Optional
+from typing import *
 
 import gym
 from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
@@ -22,7 +22,6 @@ class MaxAndSkipEnv(gym.Wrapper):
         super(MaxAndSkipEnv, self).__init__(env)
         # Most recent raw observations (for max pooling across time steps)
         self._obs_buffer = collections.deque(maxlen=2)
-        # ^ think of deque-s like lists with O(1) for pop and append
         self._skip = skip
 
     def step(self, action):
@@ -41,6 +40,7 @@ class MaxAndSkipEnv(gym.Wrapper):
     def reset(self):
         """Clear past frame buffer and init to first obs"""
         self._obs_buffer.clear()
+        temp = self.env.reset()
         obs = self.env.reset()
         self._obs_buffer.append(obs)
         return obs
@@ -123,7 +123,8 @@ class BufferWrapper(gym.ObservationWrapper):
 
     def reset(self):
         self.buffer = np.zeros_like(self.observation_space.low, dtype=self.dtype)
-        return self.observation(self.env.reset())
+        obs = self.env.reset()
+        return self.observation(obs)
 
     def observation(self, observation):
         """Update self.buffer by shifting old frames left, then adding new frame"""
