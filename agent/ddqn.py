@@ -37,8 +37,8 @@ class DDQNAgent(nn.Module):
 
         # Set up twin networks (same architecture as Mnih et al. 2013)
         if not from_pretrained:
-            self.q1 = CategoricalCNN(state_space, action_space)
-            self.q2 = CategoricalCNN(state_space, action_space)
+            self.q1 = CategoricalCNN(state_space, action_space).to(self.device)
+            self.q2 = CategoricalCNN(state_space, action_space).to(self.device)
         else:
             self.q1 = torch.load(save_dir / Path("q1.pt"), map_location=torch.device(self.device))
             self.q2 = torch.load(save_dir / Path("q2.pt"), map_location=torch.device(self.device))
