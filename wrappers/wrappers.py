@@ -7,9 +7,9 @@ import cv2
 import numpy as np
 from typing import *
 
-import gymnasium as gym
-# from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
-# from nes_py.wrappers import JoypadSpace
+import gym
+from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
+from nes_py.wrappers import JoypadSpace
 
 
 class MaxAndSkipEnv(gym.Wrapper):
@@ -41,10 +41,9 @@ class MaxAndSkipEnv(gym.Wrapper):
         """Clear past frame buffer and init to first obs"""
         self._obs_buffer.clear()
         temp = self.env.reset()
-        print(f"temp:\n{temp}")
-        obs, info = self.env.reset()
+        obs = self.env.reset()
         self._obs_buffer.append(obs)
-        return obs, info
+        return obs
 
 
 class ProcessFrame84(gym.ObservationWrapper):
@@ -144,14 +143,14 @@ def make_env(env):
     return env
 
 
-# def make_nes_env(env, actions: Optional[str] = None):
-#     """Special wrapper for NES games"""
-#     env = make_env(env)
-#     actions = actions or RIGHT_ONLY
-#     if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
-#         e = (
-#             "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, "
-#             f"but received {actions} instead."
-#         )
-#         raise ValueError(e)
-#     return JoypadSpace(env, actions)
+def make_nes_env(env, actions: Optional[str] = None):
+    """Special wrapper for NES games"""
+    env = make_env(env)
+    actions = actions or RIGHT_ONLY
+    if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
+        e = (
+            "`actions` must be one of RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT, "
+            f"but received {actions} instead."
+        )
+        raise ValueError(e)
+    return JoypadSpace(env, actions)
