@@ -25,7 +25,7 @@ def render_in_jupyter(
     return img
 
 
-def save_animation(env, agent, fpath: Union[str, Path]) -> None:
+def save_animation(env, agent, device: str, fpath: Union[str, Path]) -> None:
     """ """
 
     fig = plt.figure()
@@ -36,7 +36,7 @@ def save_animation(env, agent, fpath: Union[str, Path]) -> None:
 
     while not done:
        
-        a = agent.act(torch.as_tensor(s, dtype=torch.float32).unsqueeze(0))
+        a = agent.act(torch.as_tensor(s, dtype=torch.float32).unsqueeze(0).to(device))
         s_next, _, done, _ = env.step(a)
         s = s_next
         frame = plt.imshow(env.render(mode="rgb_array"), animated=True)
