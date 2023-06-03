@@ -54,6 +54,13 @@ class DDQNAgent(nn.Module):
             with torch.no_grad():
                 return torch.argmax(torch.min(self.q1(s), self.q2(s))).item()
         # TODO: check how to return tensor 'nested right'
+    
+    def save(self) -> None:
+        """Saves network parameters"""
+        self.save_dir.mkdir(parents=True, exist_ok=True)
+        # Save model weights
+        torch.save(self.q1.state_dict(), self.save_dir / Path("q1.pt"))
+        torch.save(self.q2.state_dict(), self.save_dir / Path("q2.pt"))
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

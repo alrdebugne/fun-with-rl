@@ -1,7 +1,10 @@
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-
 from IPython import display
+import matplotlib as mpl
+import matplotlib.animation as animation
+import matplotlib.pyplot as plt
+from pathlib import Path
+import torch
+from typing import *
 
 
 def render_in_jupyter(
@@ -20,3 +23,24 @@ def render_in_jupyter(
     display.display(plt.gcf())
     display.clear_output(wait=True)
     return img
+
+
+def save_animation(env, agent, fpath: Union[str, Path]) -> None:
+    """ """
+
+    fig = plt.figure()
+    frames = []
+
+    s = env.reset()
+    done = False
+
+    while not done:
+       
+        a = agent.act(torch.as_tensor(s, dtype=torch.float32).unsqueeze(0))
+        s_next, _, done, _ = env.step(a)
+        s = s_next
+        frame = plt.imshow(env.render(mode="rgb_array"), animated=True)
+        frames.append([frame])
+
+    animate = animation.ArtistAnimation(fig, frames, interval=50, blit=True, repeat_delay=1000)
+    animate.save(fpath, writer="pillow") 
