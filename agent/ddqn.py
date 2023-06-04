@@ -36,6 +36,7 @@ class DDQNAgent(nn.Module):
         self.epsilon = 0.10 # TODO: warm-up steps
 
         # Set up twin networks (same architecture as Mnih et al. 2013)
+        self.save_dir = save_dir
         if not from_pretrained:
             self.q1 = CategoricalCNN(state_space, action_space).to(self.device)
             self.q2 = CategoricalCNN(state_space, action_space).to(self.device)
