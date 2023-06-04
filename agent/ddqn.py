@@ -55,7 +55,7 @@ class DDQNAgent(nn.Module):
         else:
             with torch.no_grad():
                 # DDQN
-                return torch.argmax(self.q1(s))
+                return torch.argmax(self.q1(s)).item()
                 # TD3 (Q-clipping)
                 # return torch.argmax(torch.min(self.q1(s), self.q2(s))).item()
     
