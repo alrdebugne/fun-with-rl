@@ -15,11 +15,13 @@ logger = logging.getLogger("ddqn-agent")
 
 class DDQNAgent(nn.Module):
     """
-    Agent class for implementing the Double Deep Q-Networks algorithm,
-    with Q-clipping borrowed from TD3.
+    Agent class for implementing the Double Deep Q-Networks algorithm.
+    Depending on the loss function that's used, this class can be used
+    to implement either DDQN or TD3 (for discrete actions).
     
     Methods:
         `act`: picks an action based on epsilon-greedy policy
+        `save`: saves network weights to disc
     """
     def __init__(
         self,
@@ -33,13 +35,13 @@ class DDQNAgent(nn.Module):
         self.state_space = state_space
         self.action_space = action_space
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.epsilon = 0.10 # TODO: warm-up steps
+        self.epsilon = 0.10 # TODO: warm-up steps + decay
 
         # Set up twin networks (same architecture as Mnih et al. 2013)
         self.save_dir = save_dir
         if not from_pretrained:
-            self.q1 = CategoricalCNN(state_space, action_space).to(self.device)
-            self.q2 = CategoricalCNN(state_space, action_space).to(self.device)
+            self.q1 = CategoricalCNN(state_space, action_space).to(self.device) # primary
+            self.q2 = CategoricalCNN(state_space, action_space).to(self.device) # target
         else:
             self.q1 = torch.load(save_dir / Path("q1.pt"), map_location=torch.device(self.device))
             self.q2 = torch.load(save_dir / Path("q2.pt"), map_location=torch.device(self.device))
@@ -51,10 +53,11 @@ class DDQNAgent(nn.Module):
         if random.random() < self.epsilon:
             return random.randint(0, self.action_space - 1)
         else:
-            # Q-clipping
             with torch.no_grad():
-                return torch.argmax(torch.min(self.q1(s), self.q2(s))).item()
-        # TODO: check how to return tensor 'nested right'
+                # DDQN
+                return torch.argmax(self.q1(s))
+                # TD3 (Q-clipping)
+                # return torch.argmax(torch.min(self.q1(s), self.q2(s))).item()
     
     def save(self) -> None:
         """Saves network parameters"""
@@ -68,7 +71,29 @@ class DDQNAgent(nn.Module):
 # Functions for training agent
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def compute_loss(agent: nn.Module, transitions: Dict[str, torch.Tensor], loss_fn: Callable, gamma: float) -> torch.Tensor:
+def compute_loss_ddqn(agent: nn.Module, transitions: Dict[str, torch.Tensor], loss_fn: Callable, gamma: float) -> torch.Tensor:
+    """
+    Computes loss using transitions from replay buffer
+        predictions = Q1(s)|a (primary network)
+        targets = r + (1-d) * gamma * Q2(s') (target network)
+    """
+    s = transitions["s"]
+    a = transitions["a"].view(-1, 1).long()
+    # ^ adds new dimension for broadcasting
+    r = transitions["r"]
+    s_next = transitions["s_next"]
+    d = transitions["d"]
+
+    # Compute predictions & target
+    # Predictions
+    preds = agent.q1(s).gather(1, a).squeeze()
+    # Targets
+    targets = r + (1 - d) * gamma * torch.max(agent.q2(s_next), 1)[0]
+    # Loss
+    return loss_fn(preds, targets)
+
+
+def compute_loss_td3(agent: nn.Module, transitions: Dict[str, torch.Tensor], loss_fn: Callable, gamma: float) -> torch.Tensor:
     """
     Computes loss using transitions from replay buffer
         predictions = Q1(s)|a, Q2(s)|a (i.e. Q-functions evaluated at (s,a))
