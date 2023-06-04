@@ -65,7 +65,7 @@ class ReplayBuffer:
         self.memory_num_experiences = min(self.memory_num_experiences + 1, self.memory_size)
     
 
-    def sample(self, batch_size: int) -> Dict[str, torch.Tensor]:
+    def sample(self, batch_size: int, device: str) -> Dict[str, torch.Tensor]:
         """
         Samples a batch of transitions from the buffer
         TODO: enable prioritised sampling for multi-world (following D4PG)
@@ -83,7 +83,7 @@ class ReplayBuffer:
             "d": (self.dones[idcs], torch.uint8),
         }
         # Convert to tensors
-        data = {k: torch.as_tensor(v, dtype=_dtype) for k, (v, _dtype) in data.items()}
+        data = {k: torch.as_tensor(v, dtype=_dtype).to(device) for k, (v, _dtype) in data.items()}
         return data
 
 
