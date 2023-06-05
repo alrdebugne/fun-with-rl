@@ -42,7 +42,7 @@ class DDQNAgent(nn.Module):
         self.q1 = CategoricalCNN(state_space, action_space).to(self.device) # primary
         self.q2 = CategoricalCNN(state_space, action_space).to(self.device) # target
         if from_pretrained:
-            logger.log("Loading pretrained weights from {save_dir}")
+            logger.info("Loading pretrained weights from {save_dir}")
             self.q1.load_state_dict(
                 torch.load(save_dir / Path("q1.pt"), map_location=torch.device(self.device))
             )
