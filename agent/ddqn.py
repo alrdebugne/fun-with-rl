@@ -43,8 +43,12 @@ class DDQNAgent(nn.Module):
             self.q1 = CategoricalCNN(state_space, action_space).to(self.device) # primary
             self.q2 = CategoricalCNN(state_space, action_space).to(self.device) # target
         else:
-            self.q1 = torch.load(save_dir / Path("q1.pt"), map_location=torch.device(self.device))
-            self.q2 = torch.load(save_dir / Path("q2.pt"), map_location=torch.device(self.device))
+            self.q1.load_state_dict(
+                torch.load(save_dir / Path("q1.pt"), map_location=torch.device(self.device))
+            )
+            self.q2.load_state_dict(
+                torch.load(save_dir / Path("q2.pt"), map_location=torch.device(self.device))
+            )
 
         # Optimisation set up outside the agent
 
