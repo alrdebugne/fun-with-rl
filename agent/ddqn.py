@@ -39,10 +39,10 @@ class DDQNAgent(nn.Module):
 
         # Set up twin networks (same architecture as Mnih et al. 2013)
         self.save_dir = save_dir
-        if not from_pretrained:
-            self.q1 = CategoricalCNN(state_space, action_space).to(self.device) # primary
-            self.q2 = CategoricalCNN(state_space, action_space).to(self.device) # target
-        else:
+        self.q1 = CategoricalCNN(state_space, action_space).to(self.device) # primary
+        self.q2 = CategoricalCNN(state_space, action_space).to(self.device) # target
+        if from_pretrained:
+            logger.log("Loading pretrained weights from {save_dir}")
             self.q1.load_state_dict(
                 torch.load(save_dir / Path("q1.pt"), map_location=torch.device(self.device))
             )
