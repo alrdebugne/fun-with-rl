@@ -24,7 +24,9 @@ class CategoricalCNN(nn.Module):
         #     nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
         #     nn.ReLU(),
         # )
+        
         # Perhaps too simple for Mario, whose screen changes & introduces new elements? (enemies, decor, ...)
+        # Mnih + CNN
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels=input_shape[0], out_channels=16, kernel_size=8, stride=4),
             nn.ReLU(),
@@ -34,11 +36,22 @@ class CategoricalCNN(nn.Module):
             nn.ReLU(),
         )
 
+        # Copy structure which worked in the past
+        # 32C8S4 - ReLU - 64C4S2 - ReLU - 64C3S1 - ReLU - FC512 - ReLU - FC(n_actions)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels=input_shape[0], out_channels=32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            nn.ReLU(),
+        )
+
         conv_out_size = self._get_conv_out(input_shape)
         self.fc = nn.Sequential(
-            nn.Linear(conv_out_size, 256),
+            nn.Linear(conv_out_size, 512),
             nn.ReLU(),
-            nn.Linear(256, n_actions)
+            nn.Linear(512, n_actions)
         )
 
     def _get_conv_out(self, shape) -> int:
