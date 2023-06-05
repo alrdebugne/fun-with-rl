@@ -27,6 +27,8 @@ class DDQNAgent(nn.Module):
         self,
         state_space: npt.NDArray[np.float64],
         action_space: int,
+        network_class: nn.Module,
+        network_kwargs: dict,
         from_pretrained: bool,
         save_dir: Union[Path, str] = Path("models"),
     ) -> None:
@@ -39,8 +41,9 @@ class DDQNAgent(nn.Module):
 
         # Set up twin networks (same architecture as Mnih et al. 2013)
         self.save_dir = save_dir
-        self.q1 = CategoricalCNN(state_space, action_space).to(self.device) # primary
-        self.q2 = CategoricalCNN(state_space, action_space).to(self.device) # target
+        self.q1 = network_class(**network_kwargs).to(self.device) # primary
+        self.q2 = network_class(**network_kwargs).to(self.device) # target
+    
         if from_pretrained:
             logger.info("Loading pretrained weights from {save_dir}")
             self.q1.load_state_dict(
@@ -89,10 +92,11 @@ def compute_loss_ddqn(agent: nn.Module, transitions: Dict[str, torch.Tensor], lo
     d = transitions["d"]
 
     # Compute predictions & target
-    # Predictions
+    # - primary network computes Q-values for current states and select action for next states
     preds = agent.q1(s).gather(1, a).squeeze()
-    # Targets
-    targets = r + (1 - d) * gamma * torch.max(agent.q2(s_next), 1)[0]
+    a_next = agent.q1(s_next).max(1)[1].view(-1, 1) # [0] is values, [1] is indices
+    # - target network evaluates the actions in the next states
+    targets = r + (1 - d) * gamma * agent.q2(s_next).gather(1, a_next).squeeze()
     # Loss
     return loss_fn(preds, targets)
 

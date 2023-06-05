@@ -30,8 +30,8 @@ class CategoricalCNN(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
             nn.ReLU(),
-            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1),
-            nn.ReLU(),
+            # nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1),
+            # nn.ReLU(),
         )
 
         conv_out_size = self._get_conv_out(input_shape)
@@ -87,7 +87,7 @@ class CategoricalMLP(nn.Module):
         layers = []
         sizes = [input_shape] + hidden_sizes + [n_actions]
         for i in range(len(sizes) - 1):
-            activation = nn.Tanh if i < len(sizes) - 2 else nn.Identity
+            activation = nn.LeakyReLU if i < len(sizes) - 2 else nn.Identity
             layers += [nn.Linear(sizes[i], sizes[i + 1]), activation()]
         self.mlp = nn.Sequential(*layers)
 
