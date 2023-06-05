@@ -30,8 +30,8 @@ class CategoricalCNN(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
             nn.ReLU(),
-            # nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1),
-            # nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=32, kernel_size=3, stride=1),
+            nn.ReLU(),
         )
 
         conv_out_size = self._get_conv_out(input_shape)
