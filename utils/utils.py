@@ -13,7 +13,8 @@ def get_n_trainable_params(model: torch.nn.Module) -> int:
     trainable_params = filter(lambda p: p.requires_grad, model.parameters())
     # Sum their dimensions
     n_trainable_params = sum(
-        np.prod(p.detach().numpy().shape for p in trainable_params)
+        np.prod(p.cpu().detach().numpy().shape) for p in trainable_params
+        # Needs to be on CPU and detached ¯\_(ツ)_/¯
     )
     return n_trainable_params
 
