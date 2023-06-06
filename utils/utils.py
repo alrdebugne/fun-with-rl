@@ -2,9 +2,20 @@ from IPython import display
 import matplotlib as mpl
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
+import numpy as np
 from pathlib import Path
 import torch
 from typing import *
+
+
+def get_n_trainable_params(model: torch.nn.Module) -> int:
+    # Get all trainable parameters
+    trainable_params = filter(lambda p: p.requires_grad, model.parameters())
+    # Sum their dimensions
+    n_trainable_params = sum(
+        np.prod(p.detach().numpy().shape for p in trainable_params)
+    )
+    return n_trainable_params
 
 
 def render_in_jupyter(

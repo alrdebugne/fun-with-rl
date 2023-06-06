@@ -9,6 +9,7 @@ import torch.nn as nn
 import random
 
 from .solver import CategoricalCNN
+from utils import get_n_trainable_params
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ddqn-agent")
@@ -53,7 +54,11 @@ class DDQNAgent(nn.Module):
                 torch.load(save_dir / Path("q2.pt"), map_location=torch.device(self.device))
             )
 
+        n_params = get_n_trainable_params(self.q1)
+        logger.info(f"Created agent with {n_params} parameters (online Q)")
+
         # Optimisation set up outside the agent
+
 
     def act(self, s: torch.Tensor) -> int:
         """ Pick next action following epsilon-greedy policy """
