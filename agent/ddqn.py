@@ -82,11 +82,20 @@ class DDQNAgent(nn.Module):
 # Functions for training agent
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-def compute_loss_ddqn(agent: nn.Module, transitions: Dict[str, torch.Tensor], loss_fn: Callable, gamma: float) -> torch.Tensor:
+def compute_loss_ddqn(
+        agent: nn.Module,
+        transitions: Dict[str, torch.Tensor],
+        loss_fn: Callable,
+        gamma: float,
+        return_errors: bool = True
+    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     """
     Computes loss using transitions from replay buffer
         predictions = Q1(s)|a (primary network)
         targets = r + (1-d) * gamma * Q2(s') (target network)
+    
+    If `return_errors`, also returns the TD(0) error (in absolute value).
+    This is mostly used for prioritised experience replay.
     """
     s = transitions["s"]
     a = transitions["a"].view(-1, 1).long()
@@ -113,6 +122,8 @@ def compute_loss_ddqn(agent: nn.Module, transitions: Dict[str, torch.Tensor], lo
     preds = agent.q1(s).gather(1, a).squeeze()
     targets = r + (1 - d) * gamma * agent.q2(s_next).max(1)[0]
 
+    if return_errors:
+        return loss_fn(preds, targets), torch.abs(preds - targets).detach()
     return loss_fn(preds, targets)
 
 

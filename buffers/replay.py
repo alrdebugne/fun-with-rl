@@ -2,19 +2,19 @@ import logging
 import numpy as np
 import numpy.typing as npt
 from pathlib import Path
+import random
 import torch
 from typing import *
 
-logger = logging.getLogger("q-buffer")
+from .sum_tree import SumTree
+
+logger = logging.getLogger("replay-buffer")
 
 
 class ReplayBuffer:
     """
     Stores (S, A, R, S', d) transitions for a Q-learning agent,
-    with methods for sampling batches of transitions for experience replay.
-    
-    Sampling can be done either at random or with prioritised sampling (following D4PG).
-    (yet to be implemented)
+    which are randomly sampled for experience replay.
     """
 
     def __init__(
@@ -66,10 +66,7 @@ class ReplayBuffer:
     
 
     def sample(self, batch_size: int, device: str) -> Dict[str, torch.Tensor]:
-        """
-        Samples a batch of transitions from the buffer
-        TODO: enable prioritised sampling for multi-world (following D4PG)
-        """
+        """ Samples a batch of transitions uniformly from the buffer """
 
         # Sample `batch_size` transitions at random for experience replay
         idcs = np.random.choice(self.memory_num_experiences, batch_size, replace=False)
@@ -98,3 +95,90 @@ class ReplayBuffer:
         torch.save(self.dones, self.save_dir / Path("dones.pt"))
         logger.log(f"Successfully saved buffer to {str(self.save_dir)}")
 
+
+
+class PrioritisedReplayBuffer(ReplayBuffer):
+    """
+    Stores (S, A, R, S', d) transitions for a Q-learning agent,
+    which are sampled using Prioritised Experience Replay.
+
+    For full details, see Prioritized Experienced Replay (Schaul et al., 2016)
+    """
+    def __init__(self, alpha, beta, p_min, *super_args, **super_kwargs):
+        super().__init__(*super_args, **super_kwargs)
+
+        self.tree = SumTree(memory_size=self.memory_size)
+        # ^ sum tree data structure to sample from probability intervals
+
+        # Additional parameters for prioritised replay
+        self.alpha = alpha # controls priorisation
+        self.beta = beta # controls importance-sampling correction
+        self.p_min = p_min # to avoid zero prob.
+        self.p_max = p_min # for new samples
+    
+
+    def store(self, s: npt.NDArray[np.float32], a: int, r: float, s_next: npt.NDArray[np.float32], d: int) -> None:
+        """ Stores transition (S, A, R, S', d) in buffer """
+        # Add transition (its index) to the tree with default probability
+        self.tree.add(self.p_max, self.memory_pointer)
+        # Add transition to buffer, as usual
+        super().store(s, a, r, s_next, d)
+
+
+    def sample(self, batch_size: int, device: str) -> Dict[str, torch.Tensor]:
+        """
+        Samples a batch of transitions from the buffer using prioritised
+        experience replay.
+
+        Note: for simplicity, this method doesn't implement importance-sampling
+        correction.
+        """
+
+        sample_idcs, tree_idcs = [], []
+        priorities = torch.empty(batch_size, 1, dtype=torch.float32)
+
+        # We want a sampling strategy that... TODO
+        # Divide the probability range into `batch_size` many segments,
+        # then sample one transition at random from each segment
+
+        segment = self.tree.total / batch_size # segment size
+        for i in range(batch_size):
+            # Sample at random from current segment
+            low, high = segment * i, segment * (i + 1)
+            cumsum = random.uniform(low, high)
+            tree_idx, priority, sample_idx = self.tree.get(cumsum)
+
+            priorities[i] = priority
+            sample_idcs.append(sample_idx)
+            tree_idcs.append(tree_idx)
+        
+        # P(i) = p_i^α / \sum_{k} p_k^α
+        # Will be raised to the αth power in `update_priorities`
+        probs = priorities / self.tree.total
+        # Importance sampling to correct bias
+        weights = (self.memory_num_experiences * probs) ** -self.beta
+        weights = weights / weights.max()
+
+        # Format data & return
+        data = {
+            "s": (self.states[sample_idcs], torch.float32),
+            "a": (self.actions[sample_idcs], torch.long), # needed for `.gather`
+            "r": (self.rewards[sample_idcs], torch.float32),
+            "s_next": (self.states_next[sample_idcs], torch.float32),
+            "d": (self.dones[sample_idcs], torch.uint8),
+        }
+        data = {k: torch.as_tensor(v, dtype=_dtype).to(device) for k, (v, _dtype) in data.items()}
+        return data, weights.squeeze(), tree_idcs
+
+
+    def update_priorities(self, data_idcs: list, td_errors: npt.NDArray[np.float32]):
+        """
+        Updates priority for each sample as p_i = (|δ_i| + p_min)^α
+        based on latest evaluation by Q-network.
+        """
+        for data_idx, delta in zip(data_idcs, td_errors):
+            # Update priority of data samples: p_i = |δ_i| + p_min
+            delta = (delta + self.p_min) ** self.alpha
+            self.tree.update(data_idx, delta)
+            # Update max. priority (given to newly drawn samples)
+            self.p_max = max(self.p_max, delta)

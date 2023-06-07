@@ -3,6 +3,7 @@ import matplotlib as mpl
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import torch
 from typing import *
@@ -17,6 +18,33 @@ def get_n_trainable_params(model: torch.nn.Module) -> int:
         # Needs to be on CPU and detached ¯\_(ツ)_/¯
     )
     return n_trainable_params
+
+
+def moving_average(a, n):
+    """ """
+    rolling = pd.Series(a).rolling(window=n)
+    return rolling.mean(), rolling.std()
+
+
+def plot_learning_trajectories(returns: list, losses: list):
+    """ """
+    f, (ax1, ax2) = plt.subplots(figsize=(12, 3), nrows=1, ncols=2)
+
+    # Returns
+    x = range(len(returns))
+    returns_avg, returns_std = moving_average(np.array(returns), 20)
+    ax1.plot(x, returns_avg)
+    ax1.fill_between(x, (returns_avg - returns_std), (returns_avg + returns_std), color='b', alpha=.1)
+    ax1.set_title("Returns (every episode)");
+
+    # Losses
+    x = range(len(losses))
+    losses_avg, losses_std = moving_average(np.array(losses), 200)
+    ax2.plot(x, losses_avg)
+    ax2.fill_between(x, (losses_avg - losses_std), (losses_avg + losses_std), color='b', alpha=.1)
+    ax2.set_title("Losses (every learning iteration)");
+    return f
+
 
 
 def render_in_jupyter(
