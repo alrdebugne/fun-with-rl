@@ -168,7 +168,7 @@ class PrioritisedReplayBuffer(ReplayBuffer):
             "d": (self.dones[sample_idcs], torch.uint8),
         }
         data = {k: torch.as_tensor(v, dtype=_dtype).to(device) for k, (v, _dtype) in data.items()}
-        return data, weights.squeeze(), tree_idcs
+        return data, weights.squeeze().to(device), tree_idcs
 
 
     def update_priorities(self, data_idcs: list, td_errors: npt.NDArray[np.float32]):
