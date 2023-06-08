@@ -13,7 +13,7 @@ class CategoricalCNN(nn.Module):
     def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
         super().__init__()
         # DDQN structure that learnt SMB:
-        # Nx4x84x84 - 32C8S4 - ReLU - 64C4S2 - ReLU - 64C3S1 - ReLU - FC512 - ReLU - FC(n_actions)
+        # Nx4x84x84 - C32K8S4 - ReLU - C64K4S2 - ReLU - C64K3S1 - ReLU - FC512 - ReLU - FC(n_actions)
         # Too large for A2C/PPO (I presume because of its lower sample efficiency)
         # Trying smaller networks instead...
 
@@ -26,7 +26,6 @@ class CategoricalCNN(nn.Module):
         # )
         
         # Perhaps too simple for Mario, whose screen changes & introduces new elements? (enemies, decor, ...)
-        # Mnih + CNN
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels=input_shape[0], out_channels=32, kernel_size=8, stride=4),
             nn.ReLU(),
@@ -35,18 +34,6 @@ class CategoricalCNN(nn.Module):
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
             nn.ReLU(),
         )
-
-        # Copy structure which worked in the past
-        # 32C8S4 - ReLU - 64C4S2 - ReLU - 64C3S1 - ReLU - FC512 - ReLU - FC(n_actions)
-        # self.conv = nn.Sequential(
-        #     nn.Conv2d(in_channels=input_shape[0], out_channels=32, kernel_size=8, stride=4),
-        #     nn.ReLU(),
-        #     nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
-        #     nn.ReLU(),
-        #     nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-        #     nn.ReLU(),
-        # )
-
         conv_out_size = self._get_conv_out(input_shape)
         self.fc = nn.Sequential(
             nn.Linear(conv_out_size, 512),

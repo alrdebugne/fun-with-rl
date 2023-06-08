@@ -87,7 +87,7 @@ def compute_loss_ddqn(
         transitions: Dict[str, torch.Tensor],
         loss_fn: Callable,
         gamma: float,
-        return_errors: bool = True
+        return_errors: bool = False
     ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     """
     Computes loss using transitions from replay buffer

@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 import random
 import time
-from typing import Tuple
+from typing import *
 
 import numpy as np
 import numpy.typing as npt
@@ -123,7 +123,7 @@ class DDQNAgent:
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
 
-    def play_episode(self, env, is_training: bool) -> Tuple[float, int]:
+    def play_episode(self, env, is_training: bool) -> Tuple[float, int, List[float]]:
         """
         Plays one episode from start to finish in `env` and returns the associated reward.
         If `is_training` is True, also updates weights through experience replay.
@@ -134,15 +134,14 @@ class DDQNAgent:
 
         state = env.reset()
         state = torch.Tensor(np.array([state]))
-        reward_episode = 0
-        steps_episode = 0
+        ep_return, ep_steps, ep_losses = 0, 0, []
         done = False
 
         while not done:
             action = self._act(state)
-            steps_episode += 1
+            ep_steps += 1
             state_next, reward, done, info = env.step(int(action[0]))
-            reward_episode += reward
+            ep_return += reward
 
             # Format to pytorch tensors
             state_next = torch.Tensor(np.array([state_next]))
@@ -152,13 +151,14 @@ class DDQNAgent:
             if is_training:
                 self._update_memory_pointer_and_count()
                 self._remember(state, action, reward, state_next, done)
-                self._experience_replay()
+                loss = self._experience_replay()
+                ep_losses.append(loss)
                 # TODO: update methods `update_...` and `remember` s.t. index 0 isn't skipped
                 # at first iteration, while remaining compatible with MultiworldDDQNAgent.
 
             state = state_next
 
-        return reward_episode, steps_episode
+        return ep_return, ep_steps, ep_losses
 
     def run(
         self,
@@ -316,6 +316,7 @@ class DDQNAgent:
         self.exploration_rate = max(
             self.exploration_rate * self.exploration_decay, self.exploration_min
         )
+        return loss.item()
 
     def _update_memory_pointer_and_count(self) -> None:
         """
