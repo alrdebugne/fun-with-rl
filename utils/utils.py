@@ -26,23 +26,30 @@ def moving_average(a, n):
     return rolling.mean(), rolling.std()
 
 
-def plot_learning_trajectories(returns: list, losses: list):
+def plot_learning_trajectories(returns: list, losses: list, qvals: list, subplots_kwargs: dict):
     """ """
-    f, (ax1, ax2) = plt.subplots(figsize=(12, 3), nrows=1, ncols=2)
+    f, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, **subplots_kwargs)
 
     # Returns
     x = range(len(returns))
     returns_avg, returns_std = moving_average(np.array(returns), 20)
-    ax1.plot(x, returns_avg)
-    ax1.fill_between(x, (returns_avg - returns_std), (returns_avg + returns_std), color='b', alpha=.1)
+    ax1.plot(x, returns_avg, color="b")
+    ax1.fill_between(x, (returns_avg - returns_std), (returns_avg + returns_std), color="b", alpha=.1)
     ax1.set_title("Returns (every episode)");
 
     # Losses
     x = range(len(losses))
     losses_avg, losses_std = moving_average(np.array(losses), 200)
-    ax2.plot(x, losses_avg)
-    ax2.fill_between(x, (losses_avg - losses_std), (losses_avg + losses_std), color='b', alpha=.1)
+    ax2.plot(x, losses_avg, color="r")
+    ax2.fill_between(x, (losses_avg - losses_std), (losses_avg + losses_std), color="r", alpha=.1)
     ax2.set_title("Losses (every learning iteration)");
+
+    # Q-values (either average or max, based on what user enters)
+    x = range(len(qvals))
+    qvals_avg, qvals_std = moving_average(np.array(qvals), 20)
+    ax3.plot(x, qvals_avg, color="g")
+    ax3.fill_between(x, (qvals_avg - qvals_std), (qvals_avg + qvals_std), color="g", alpha=.1)
+    ax3.set_title("Average Q-values (on hold-out)");
     return f
 
 
