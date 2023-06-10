@@ -264,7 +264,7 @@ class DDQNAgent:
         between adjacent frames.
         """
         # Update target model weights every `self.copy` steps
-        if (self.step % self.copy == 0) and not (self.is_pretrained and self.step == 0):
+        if self.step > 0 and (self.step % self.copy == 0):
             self._copy_target_to_primary()
 
         # Only start experience replay once there are more experiences than batch size
