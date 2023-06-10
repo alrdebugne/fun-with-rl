@@ -65,12 +65,11 @@ class ReplayBuffer:
         self.memory_num_experiences = min(self.memory_num_experiences + 1, self.memory_size)
     
 
-    def sample(self, batch_size: int, device: str) -> Dict[str, torch.Tensor]:
+    def sample(self, batch_size: int, replace: bool, device: str) -> Dict[str, torch.Tensor]:
         """ Samples a batch of transitions uniformly from the buffer """
 
         # Sample `batch_size` transitions at random for experience replay
-        idcs = np.random.choice(self.memory_num_experiences, batch_size, replace=False)
-        # TODO: code prioritised sampling for multi-world following D4PG
+        idcs = np.random.choice(self.memory_num_experiences, batch_size, replace=replace)
 
         data = {
             "s": (self.states[idcs], torch.float32),
