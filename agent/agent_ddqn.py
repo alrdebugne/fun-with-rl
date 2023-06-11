@@ -272,7 +272,7 @@ class DDQNAgent:
             return
 
         # Recall batches of experience, selected at random
-        if sample_indices:
+        if sample_indices is not None:
             # Dastardly shortcut to debug (without altering squeezes etc.)
             STATE = self.STATE_MEM[sample_indices]
             ACTION = self.ACTION_MEM[sample_indices]
