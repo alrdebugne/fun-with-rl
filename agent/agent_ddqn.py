@@ -256,7 +256,7 @@ class DDQNAgent:
             # ^ calling unsqueeze to return 'nested' tensor
         )
 
-    def _experience_replay(self):
+    def _experience_replay(self, sample_indices: Optional[npt.NDArray] = None):
         """
         Sample experiences from memory buffer to update weights.
 
@@ -272,12 +272,20 @@ class DDQNAgent:
             return
 
         # Recall batches of experience, selected at random
-        STATE, ACTION, REWARD, STATE2, DONE = self._recall()
-        STATE = STATE.to(self.device)
-        ACTION = ACTION.to(self.device)
-        REWARD = REWARD.to(self.device)
-        STATE2 = STATE2.to(self.device)
-        DONE = DONE.to(self.device)
+        if sample_indices:
+            # Dastardly shortcut to debug (without altering squeezes etc.)
+            STATE = self.STATE_MEM[sample_indices]
+            ACTION = self.ACTION_MEM[sample_indices]
+            REWARD = self.REWARD_MEM[sample_indices]
+            STATE2 = self.STATE2_MEM[sample_indices]
+            DONE = self.DONE_MEM[sample_indices]
+        else:
+            STATE, ACTION, REWARD, STATE2, DONE = self._recall()
+            STATE = STATE.to(self.device)
+            ACTION = ACTION.to(self.device)
+            REWARD = REWARD.to(self.device)
+            STATE2 = STATE2.to(self.device)
+            DONE = DONE.to(self.device)
 
         self.optimizer.zero_grad()
         # ^ set gradients to zero (by default, pytorch accumulates gradients unless reset)

@@ -65,7 +65,9 @@ class ReplayBuffer:
         self.memory_num_experiences = min(self.memory_num_experiences + 1, self.memory_size)
     
 
-    def sample(self, batch_size: int, replace: bool, device: str) -> Dict[str, torch.Tensor]:
+    def sample(
+            self, batch_size: int, replace: bool, device: str, return_indices: bool
+        ) -> Union[Dict[str, torch.Tensor], Tuple[Dict[str, torch.Tensor], npt.NDArray]]:
         """ Samples a batch of transitions uniformly from the buffer """
 
         # Sample `batch_size` transitions at random for experience replay
@@ -80,6 +82,8 @@ class ReplayBuffer:
         }
         # Convert to tensors
         data = {k: torch.as_tensor(v, dtype=_dtype).to(device) for k, (v, _dtype) in data.items()}
+        if return_indices:
+            return data, idcs
         return data
 
 
