@@ -281,11 +281,11 @@ class DDQNAgent:
             DONE = self.DONE_MEM[sample_indices]
         else:
             STATE, ACTION, REWARD, STATE2, DONE = self._recall()
-            STATE = STATE.to(self.device)
-            ACTION = ACTION.to(self.device)
-            REWARD = REWARD.to(self.device)
-            STATE2 = STATE2.to(self.device)
-            DONE = DONE.to(self.device)
+        STATE = STATE.to(self.device)
+        ACTION = ACTION.to(self.device)
+        REWARD = REWARD.to(self.device)
+        STATE2 = STATE2.to(self.device)
+        DONE = DONE.to(self.device)
 
         self.optimizer.zero_grad()
         # ^ set gradients to zero (by default, pytorch accumulates gradients unless reset)
