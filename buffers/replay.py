@@ -66,7 +66,7 @@ class ReplayBuffer:
     
 
     def sample(
-            self, batch_size: int, replace: bool, device: str, return_indices: bool
+            self, batch_size: int, replace: bool, device: str, return_indices: bool = False
         ) -> Union[Dict[str, torch.Tensor], Tuple[Dict[str, torch.Tensor], npt.NDArray]]:
         """ Samples a batch of transitions uniformly from the buffer """
 
