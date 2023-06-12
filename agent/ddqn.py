@@ -111,16 +111,16 @@ def compute_loss_ddqn(
     # DDQN as described in Hasselt et al. 2016:
     # - online network computes Q-value for s_t and picks a_{t+1}
     # - target network evaluates Q-value for s_{t+1}, a_{t+1}
-    # preds = agent.q1(s).gather(1, a).squeeze()
-    # a_next = agent.q1(s_next).max(1)[1].view(-1, 1) # [0] is values, [1] is indices
-    # targets = r + (1 - d) * gamma * agent.q2(s_next).gather(1, a_next).squeeze()
+    preds = agent.q1(s).gather(1, a).squeeze()
+    a_next = agent.q1(s_next).max(1)[1].view(-1, 1) # [0] is values, [1] is indices
+    targets = r + (1 - d) * gamma * agent.q2(s_next).gather(1, a_next).squeeze()
 
     # DDQN as described in Mnih et al. 2015:
     # - online network computes Q-value for s_t
     # - target network picks a_{t+1} and evaluates Q-values for s_{t+1}, a_{t+1}
     # ¯\_(ツ)_/¯
-    preds = agent.q1(s).gather(1, a).squeeze()
-    targets = r + (1 - d) * gamma * agent.q2(s_next).max(1)[0]
+    # preds = agent.q1(s).gather(1, a).squeeze()
+    # targets = r + (1 - d) * gamma * agent.q2(s_next).max(1)[0]
 
     if return_errors:
         return loss_fn(preds, targets), torch.abs(preds - targets).detach()
