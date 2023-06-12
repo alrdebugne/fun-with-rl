@@ -20,6 +20,13 @@ def get_n_trainable_params(model: torch.nn.Module) -> int:
     return n_trainable_params
 
 
+def get_lr(step: int, decay_steps: int, lr_max: float, lr_min: float):
+    """
+    Hand-crafted scheduler: decays linearly until lr_min over decay_steps
+    """
+    return max(lr_min, lr_max - (lr_max - lr_min) / decay_steps * step)
+
+
 def moving_average(a, n):
     """ """
     rolling = pd.Series(a).rolling(window=n)
