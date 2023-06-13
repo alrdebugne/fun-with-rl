@@ -1,6 +1,7 @@
 # Save states & logs
 data/
-videos/
+animations/
+models/
 logs/
 
 # Virtual environments

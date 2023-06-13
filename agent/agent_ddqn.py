@@ -3,7 +3,7 @@ from pathlib import Path
 import pickle
 import random
 import time
-from typing import Tuple
+from typing import *
 
 import numpy as np
 import numpy.typing as npt
@@ -123,7 +123,7 @@ class DDQNAgent:
         self.exploration_min = exploration_min
         self.exploration_decay = exploration_decay
 
-    def play_episode(self, env, is_training: bool) -> Tuple[float, int]:
+    def play_episode(self, env, is_training: bool) -> Tuple[float, int, List[float]]:
         """
         Plays one episode from start to finish in `env` and returns the associated reward.
         If `is_training` is True, also updates weights through experience replay.
@@ -134,15 +134,14 @@ class DDQNAgent:
 
         state = env.reset()
         state = torch.Tensor(np.array([state]))
-        reward_episode = 0
-        steps_episode = 0
+        ep_return, ep_steps, ep_losses = 0, 0, []
         done = False
 
         while not done:
             action = self._act(state)
-            steps_episode += 1
+            ep_steps += 1
             state_next, reward, done, info = env.step(int(action[0]))
-            reward_episode += reward
+            ep_return += reward
 
             # Format to pytorch tensors
             state_next = torch.Tensor(np.array([state_next]))
@@ -152,13 +151,14 @@ class DDQNAgent:
             if is_training:
                 self._update_memory_pointer_and_count()
                 self._remember(state, action, reward, state_next, done)
-                self._experience_replay()
+                loss = self._experience_replay()
+                ep_losses.append(loss)
                 # TODO: update methods `update_...` and `remember` s.t. index 0 isn't skipped
                 # at first iteration, while remaining compatible with MultiworldDDQNAgent.
 
             state = state_next
 
-        return reward_episode, steps_episode
+        return ep_return, ep_steps, ep_losses
 
     def run(
         self,
@@ -256,7 +256,7 @@ class DDQNAgent:
             # ^ calling unsqueeze to return 'nested' tensor
         )
 
-    def _experience_replay(self):
+    def _experience_replay(self, sample_indices: Optional[npt.NDArray] = None):
         """
         Sample experiences from memory buffer to update weights.
 
@@ -264,7 +264,7 @@ class DDQNAgent:
         between adjacent frames.
         """
         # Update target model weights every `self.copy` steps
-        if (self.step % self.copy == 0) and not (self.is_pretrained and self.step == 0):
+        if self.step > 0 and (self.step % self.copy == 0):
             self._copy_target_to_primary()
 
         # Only start experience replay once there are more experiences than batch size
@@ -272,7 +272,15 @@ class DDQNAgent:
             return
 
         # Recall batches of experience, selected at random
-        STATE, ACTION, REWARD, STATE2, DONE = self._recall()
+        if sample_indices is not None:
+            # Dastardly shortcut to debug (without altering squeezes etc.)
+            STATE = self.STATE_MEM[sample_indices]
+            ACTION = self.ACTION_MEM[sample_indices]
+            REWARD = self.REWARD_MEM[sample_indices]
+            STATE2 = self.STATE2_MEM[sample_indices]
+            DONE = self.DONE_MEM[sample_indices]
+        else:
+            STATE, ACTION, REWARD, STATE2, DONE = self._recall()
         STATE = STATE.to(self.device)
         ACTION = ACTION.to(self.device)
         REWARD = REWARD.to(self.device)
@@ -316,6 +324,7 @@ class DDQNAgent:
         self.exploration_rate = max(
             self.exploration_rate * self.exploration_decay, self.exploration_min
         )
+        return loss.item()
 
     def _update_memory_pointer_and_count(self) -> None:
         """

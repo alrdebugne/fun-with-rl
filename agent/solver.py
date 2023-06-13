@@ -13,22 +13,32 @@ class CategoricalCNN(nn.Module):
     def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
         super().__init__()
         # DDQN structure that learnt SMB:
-        # Nx4x84x84 - 32C8S4 - ReLU - 64C4S2 - ReLU - 64C3S1 - ReLU - FC512 - ReLU - FC(n_actions)
+        # Nx4x84x84 - C32K8S4 - ReLU - C64K4S2 - ReLU - C64K3S1 - ReLU - FC512 - ReLU - FC(n_actions)
         # Too large for A2C/PPO (I presume because of its lower sample efficiency)
         # Trying smaller networks instead...
 
         # Copy the same structure as Mnih
+        # self.conv = nn.Sequential(
+        #     nn.Conv2d(in_channels=input_shape[0], out_channels=16, kernel_size=8, stride=4),
+        #     nn.ReLU(),
+        #     nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
+        #     nn.ReLU(),
+        # )
+        
+        # Perhaps too simple for Mario, whose screen changes & introduces new elements? (enemies, decor, ...)
         self.conv = nn.Sequential(
-            nn.Conv2d(in_channels=input_shape[0], out_channels=16, kernel_size=8, stride=4),
+            nn.Conv2d(in_channels=input_shape[0], out_channels=32, kernel_size=8, stride=4),
             nn.ReLU(),
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
             nn.ReLU(),
         )
         conv_out_size = self._get_conv_out(input_shape)
         self.fc = nn.Sequential(
-            nn.Linear(conv_out_size, 256),
+            nn.Linear(conv_out_size, 512),
             nn.ReLU(),
-            nn.Linear(256, n_actions)
+            nn.Linear(512, n_actions)
         )
 
     def _get_conv_out(self, shape) -> int:
@@ -77,7 +87,7 @@ class CategoricalMLP(nn.Module):
         layers = []
         sizes = [input_shape] + hidden_sizes + [n_actions]
         for i in range(len(sizes) - 1):
-            activation = nn.Tanh if i < len(sizes) - 2 else nn.Identity
+            activation = nn.LeakyReLU if i < len(sizes) - 2 else nn.Identity
             layers += [nn.Linear(sizes[i], sizes[i + 1]), activation()]
         self.mlp = nn.Sequential(*layers)
 
