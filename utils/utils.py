@@ -3,10 +3,25 @@ import matplotlib as mpl
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
+import logging
 import pandas as pd
 from pathlib import Path
+import random
 import torch
 from typing import *
+
+
+def set_seed(seed: int, env):
+  """ Sets seed everywhere I can think of for reproducibility """
+  logging.info(f"Setting seed {seed}")
+  random.seed(seed)
+  np.random.seed(seed)
+  torch.manual_seed(seed)
+  torch.cuda.manual_seed(seed)
+  torch.backends.cudnn.deterministic = True
+  torch.backends.cudnn.benchmark = False
+  env.seed(seed)
+  env.action_space.seed(seed)
 
 
 def get_n_trainable_params(model: torch.nn.Module) -> int:
