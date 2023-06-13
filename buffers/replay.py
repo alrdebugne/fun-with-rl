@@ -129,8 +129,8 @@ class PrioritisedReplayBuffer(ReplayBuffer):
 
 
     def sample(
-            self, batch_size: int, device: str
-        ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, List[int]]:
+        self, batch_size: int, device: str
+    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, List[int]]:
         """
         Samples a batch of transitions from the buffer using prioritised
         experience replay.
