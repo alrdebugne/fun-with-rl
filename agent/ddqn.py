@@ -83,12 +83,12 @@ class DDQNAgent(nn.Module):
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def compute_loss_ddqn(
-        agent: nn.Module,
-        transitions: Dict[str, torch.Tensor],
-        loss_fn: Callable,
-        gamma: float,
-        return_errors: bool = False
-    ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    agent: nn.Module,
+    transitions: Dict[str, torch.Tensor],
+    loss_fn: Callable,
+    gamma: float,
+    return_errors: bool = False
+) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     """
     Computes loss using transitions from replay buffer
         predictions = Q1(s)|a (primary network)
