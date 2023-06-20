@@ -43,9 +43,12 @@ class SMBDataset(Dataset):
     label_name = self.folder / Path(f"labels/{idx}.png")
     # ^ check this works with torch.Tensor
     image = Image.open(image_name).convert("RGB")
-    label = Image.open(label_name) # TODO: multiply by 255
+    label = Image.open(label_name)
 
-    sample = {"image": image, "label": label}
+    sample = {
+      "image": transforms.ToTensor()(image),
+      "label": (255 * transforms.ToTensor()(label)).long()
+    }
     if self.transform:
       # TODO: might need different transformation for train and eval
       sample = self.transform(sample)
@@ -69,3 +72,22 @@ def crop_flip(sample: Dict[str, Image.Image]) -> Dict[str, Image.Image]:
     sample["label"] = TF.hflip(sample["label"])
 
   return sample
+
+
+# Snippet to visualise three batches:
+#
+# ROOT = ...
+# transformed_dataset = SMBDataset(folder=ROOT / Path("export"), transform=crop_flip)
+# dataloader = DataLoader(transformed_dataset, batch_size=4, shuffle=True, num_workers=0)
+#
+# f, axes = plt.subplots(nrows=3, ncols=8, figsize=(12, 5))
+# axes = np.ravel(axes)
+#
+# for num_batch, batch in enumerate(dataloader):
+#   print(f"Batch {num_batch}, images {batch['image'].size()}, labels {batch['label'].size()}")
+#   for j, (img, lbl) in enumerate(zip(batch["image"], batch["label"])):
+#     ax_img, ax_label = axes[2 * j + num_batch * 8], axes[2 * j + 1 + num_batch * 8]
+#     ax_img.imshow(img.permute(1, 2, 0));
+#     ax_label.imshow(lbl.permute(1, 2, 0));
+#   if num_batch == 2:
+#     break
