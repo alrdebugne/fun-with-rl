@@ -1,11 +1,15 @@
 import pathlib
 from pathlib import Path
+import random
 from typing import *
 
 from PIL import Image
 
 import torch
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
+from torchvision import transforms
+import torchvision.transforms.functional as TF
+
 
 class SMBDataset(Dataset):
   """
@@ -43,7 +47,25 @@ class SMBDataset(Dataset):
 
     sample = {"image": image, "label": label}
     if self.transform:
+      # TODO: might need different transformation for train and eval
       sample = self.transform(sample)
     
     return sample
 
+
+def crop_flip(sample: Dict[str, Image.Image]) -> Dict[str, Image.Image]:
+  """
+  Applies random cropping and horizontal flips to train images
+  """
+  
+  # Cropping
+  i, j, h, w = transforms.RandomCrop.get_params(sample["image"], (224, 224))
+  sample["image"] = TF.crop(sample["image"], i, j, h, w)
+  sample["label"] = TF.crop(sample["label"], i, j, h, w)
+
+  # Flipping
+  if random.random() > 0.5:
+    sample["image"] = TF.hflip(sample["image"])
+    sample["label"] = TF.hflip(sample["label"])
+
+  return sample
