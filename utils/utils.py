@@ -75,7 +75,6 @@ def plot_learning_trajectories(returns: list, losses: list, qvals: list, subplot
     return f
 
 
-
 def render_in_jupyter(
     env, img: mpl.image.AxesImage = None, info: str = ""
 ) -> mpl.image.AxesImage:
