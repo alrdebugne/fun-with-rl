@@ -17,23 +17,29 @@ class SMBDataset(Dataset):
   for the segmentation model
   """
 
-  def __init__(self, folder, mode: str, transform: Optional[Callable] = None):
+  def __init__(
+      self,
+      folder_images: pathlib.Path,
+      folder_labels: pathlib.Path,
+      mode: str,
+      transform: Optional[Callable] = None
+    ):
     """
     Args:
-      folder (pathlib): path to folder containing folders "images" and "labels"
+      folder_images (pathlib): path to folder containing images
+      folder_labels (pathlib): path to folder containing labels
       mode (str): either "train" or "eval". Affects how dataset is partitioned
       transform (callable, optional): optional transformation to apply to sample
     """
     assert mode in ["train", "eval"], \
       f"`mode` must be 'train' or 'eval', but was {mode}."
 
-    self.folder = folder
     self.mode = mode
     self.transform = transform
 
     # Split images into train and validations
-    all_images = sorted(list((self.folder / Path("images")).glob("*.png")))
-    all_labels = sorted(list((self.folder / Path("labels")).glob("*.png")))
+    all_images = sorted(list(folder_images.glob("*.png")))
+    all_labels = sorted(list(folder_labels.glob("*.png")))
     # ^ sorting needed to align indices in images and labels
 
     if mode == "train":
