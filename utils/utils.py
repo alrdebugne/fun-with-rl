@@ -1,3 +1,5 @@
+# TODO: refactor into utils (general) and agent/utils (RL-specific)
+
 from IPython import display
 import matplotlib as mpl
 import matplotlib.animation as animation
@@ -73,24 +75,6 @@ def plot_learning_trajectories(returns: list, losses: list, qvals: list, subplot
     ax3.fill_between(x, (qvals_avg - qvals_std), (qvals_avg + qvals_std), color="g", alpha=.1)
     ax3.set_title("Average Q-values (on hold-out)");
     return f
-
-
-def render_in_jupyter(
-    env, img: mpl.image.AxesImage = None, info: str = ""
-) -> mpl.image.AxesImage:
-    """ """
-    if img is None:
-        # Create first image, once
-        img = plt.imshow(env.render(mode="rgb_array"))
-        img.axes.set_title(info)
-        return img
-
-    # Update existing screen
-    img.set_data(env.render(mode="rgb_array"))  # just update the data
-    img.axes.set_title(info)
-    display.display(plt.gcf())
-    display.clear_output(wait=True)
-    return img
 
 
 def save_animation(env, agent, device: str, fpath: Union[str, Path]) -> None:

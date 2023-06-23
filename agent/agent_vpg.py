@@ -11,8 +11,6 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from utils.utils import render_in_jupyter
-
 logger = logging.getLogger("vpg-agent")
 
 
@@ -100,7 +98,8 @@ class VPGAgent:
 
         while not done:
             if render:
-                img = render_in_jupyter(env, img, info=f"Current reward: {reward}")
+                raise DeprecationWarning("Rendering in jupyter is deprecated.")
+                # img = render_in_jupyter(env, img, info=f"Current reward: {reward}")
 
             # Store current state
             observations.append(state)

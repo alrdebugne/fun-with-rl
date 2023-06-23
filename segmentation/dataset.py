@@ -34,7 +34,7 @@ class SMBDataset(Dataset):
     # Split images into train and validations
     all_images = sorted(list((self.folder / Path("images")).glob("*.png")))
     all_labels = sorted(list((self.folder / Path("labels")).glob("*.png")))
-    # ^ sorted needed to align indices in images and labels
+    # ^ sorting needed to align indices in images and labels
 
     if mode == "train":
       start, end = 0, int(len(all_images) * 0.8)
