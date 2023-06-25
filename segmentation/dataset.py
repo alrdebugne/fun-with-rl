@@ -1,5 +1,4 @@
 import pathlib
-from pathlib import Path
 import random
 from typing import *
 
@@ -67,7 +66,6 @@ class SMBDataset(Dataset):
 
     image_name = self.images[idx]
     label_name = self.labels[idx]
-    # TODO: check this works with torch.Tensor
     image = Image.open(image_name).convert("RGB")
     label = Image.open(label_name)
 
