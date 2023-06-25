@@ -23,7 +23,8 @@ num_classes = len(Segments.__dict__["__annotations__"])
 # Load segmentation model
 # (later, only load if segmentation model is applied)
 segmodel = SegModel(
-    path_model=Path(),
+    path_model=Path("./models/deeplabv3_resnet50_finetuned_60k.pt"),
+    # TODO: find a better way of doing this (e.g. config file)
     num_classes=num_classes,
     transform=None,
 )
