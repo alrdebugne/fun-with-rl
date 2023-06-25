@@ -114,7 +114,7 @@ class ProcessFrame84Segment(gym.ObservationWrapper):
     def process(frame):
         # if frame.size == 240 * 256 * 3:
         #     img = np.reshape(frame, [240, 256, 3]).astype(np.float32)
-        img = frame
+        img = frame.copy()  # required because of numpy negative strides
         img = segmodel.apply(img)
         img = np.uint8(img / segmodel.num_classes)
         # ^ converts labels [0, num_classes] to [0, 1]
