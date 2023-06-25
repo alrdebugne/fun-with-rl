@@ -26,7 +26,7 @@ class SegModel(torch.nn.Module):
         segmodel.to(device)
 
         # Load fine-tuned weights
-        segmodel.load_state_dict(torch.load(path_model), map_location=torch.device(device))
+        segmodel.load_state_dict(torch.load(path_model, map_location=torch.device(device)))
         segmodel.eval()  # required because of BatchNorm
         self.segmodel = segmodel
         self.num_classes = num_classes
