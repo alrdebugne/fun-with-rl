@@ -21,7 +21,7 @@ class SegModel(torch.nn.Module):
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         # Load DeepLabv3 model, adapt classifier and load fine-tuned weights
-        segmodel = models.segmentation.deeplabv3(pretrained=True, progress=False)
+        segmodel = models.segmentation.deeplabv3_resnet50(pretrained=True, progress=False)
         segmodel.classifier = DeepLabHead(2048, num_classes)
         segmodel.to(device)
 
