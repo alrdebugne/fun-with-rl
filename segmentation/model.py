@@ -31,11 +31,12 @@ class SegModel(torch.nn.Module):
         self.segmodel = segmodel
         self.num_classes = num_classes
         self.transform = transform
+        self.device = device
 
 
     def apply(self, frame: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
         """ Segments `frame` using fine-tuned segmentation model """
-        frame = transforms.ToTensor()(frame).unsqueeze(0)  # adds batch dimension
+        frame = transforms.ToTensor()(frame).unsqueeze(0).to(self.device)  # adds batch dimension
         if self.transform:
             frame = self.transform(frame)
         logits = self.segmodel(frame)["out"].squeeze(0)
