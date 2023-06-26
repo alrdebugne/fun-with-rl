@@ -90,7 +90,7 @@ class ProcessFrame84(gym.ObservationWrapper):
         # Greyscale (factors from original Mnih paper)
         img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
         resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
-        x_t = resized_screen[18:102, :]
+        x_t = resized_screen[18 : 102, :]
         x_t = np.reshape(x_t, [84, 84, 1])
         return x_t.astype(np.uint8)
 
@@ -116,9 +116,8 @@ class ProcessFrame84Segment(gym.ObservationWrapper):
         #     img = np.reshape(frame, [240, 256, 3]).astype(np.float32)
         img = frame.copy()  # required because of numpy negative strides
         img = segmodel.apply(img)
-        img = np.uint8(img / segmodel.num_classes)
-        # ^ converts labels [0, num_classes] to [0, 1]
-        # note: original paper casts between [0, 255]
+        img = np.uint8(255 * img / segmodel.num_classes)
+        # ^ converts labels [0, num_classes] to [0, 255]
 
         resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
         x_t = resized_screen[18 : 102, :]
