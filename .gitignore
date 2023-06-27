@@ -20,3 +20,6 @@ __pycache__/
 
 # macOS stuff
 .DS_Store
+
+# Article write-up
+writeup.md
