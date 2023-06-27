@@ -20,7 +20,7 @@ class ReplayBuffer:
 
     def __init__(
         self,
-        state_space: npt.NDArray[np.float64],
+        state_space: npt.NDArray[np.float32],
         memory_size: int,
         from_pretrained: bool,
         save_dir: Union[Path, str] = Path("buffer"),

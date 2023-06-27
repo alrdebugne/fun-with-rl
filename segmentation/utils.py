@@ -21,7 +21,7 @@ def set_seed(seed: int):
 
 def _fast_hist(
     labels_pred: List[float], labels_true: List[float], num_classes: int
-) -> npt.NDArray[np.float64]:
+) -> npt.NDArray[np.float32]:
   """ """
   mask = (labels_true >= 0) & (labels_true < num_classes)
   hist = np.bincount(

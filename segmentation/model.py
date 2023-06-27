@@ -34,7 +34,7 @@ class SegModel(torch.nn.Module):
         self.device = device
 
 
-    def apply(self, frame: npt.NDArray[np.float64]) -> npt.NDArray[np.float64]:
+    def apply(self, frame: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         """ Segments `frame` using fine-tuned segmentation model """
         frame = transforms.ToTensor()(frame).unsqueeze(0).to(self.device)  # adds batch dimension
         if self.transform:

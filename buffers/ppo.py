@@ -19,7 +19,7 @@ class PPOBuffer:
 
     def __init__(
         self,
-        state_space: npt.NDArray[np.float64],
+        state_space: npt.NDArray[np.float32],
         action_space: int,
         size: int,
         gamma: float,
