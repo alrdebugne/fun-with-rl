@@ -25,7 +25,7 @@ class DDQNAgent(nn.Module):
     """
     def __init__(
         self,
-        state_space: npt.NDArray[np.float64],
+        state_space: npt.NDArray[np.float32],
         action_space: int,
         network_class: nn.Module,
         network_kwargs: dict,

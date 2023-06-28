@@ -11,8 +11,6 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical
 
-from utils.utils import render_in_jupyter
-
 logger = logging.getLogger("vpg-agent")
 
 
@@ -27,7 +25,7 @@ class VPGAgent:
 
     def __init__(
         self,
-        state_space: npt.NDArray[np.float64],
+        state_space: npt.NDArray[np.float32],
         action_space: int,
         policy_net: nn.Module,
         policy_net_kwargs: dict,
@@ -66,7 +64,7 @@ class VPGAgent:
     def play_episode(
         self, env, render: bool = False, exploit_only: bool = False
     ) -> Tuple[
-        List[torch.Tensor], List[torch.Tensor], List[np.float64], List[bool], int
+        List[torch.Tensor], List[torch.Tensor], List[np.float32], List[bool], int
     ]:
         """
         Plays one episode from start to finish in `env`.
@@ -100,7 +98,8 @@ class VPGAgent:
 
         while not done:
             if render:
-                img = render_in_jupyter(env, img, info=f"Current reward: {reward}")
+                raise DeprecationWarning("Rendering in jupyter is deprecated.")
+                # img = render_in_jupyter(env, img, info=f"Current reward: {reward}")
 
             # Store current state
             observations.append(state)
@@ -309,7 +308,7 @@ class VPGAgent:
         else:
             return Categorical(logits=logits).sample().item()
 
-    def _compute_returns(self, rewards: List[np.float64]) -> np.ndarray:
+    def _compute_returns(self, rewards: List[np.float32]) -> np.ndarray:
         """
         Computes total returns from state s_t as the discounted rewards-to-go,
         i.e. R(t) = sum_{t'=t}^{T} gamma^{t'-t} * r(t').

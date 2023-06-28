@@ -5,11 +5,29 @@ Based on OpenAI baselines: https://github.com/openai/baselines/blob/master/basel
 import collections
 import cv2
 import numpy as np
+from pathlib import Path
 from typing import *
 
 import gym
 from gym_super_mario_bros.actions import RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT
 from nes_py.wrappers import JoypadSpace
+# from torchvision import transforms
+
+from segmentation import SegModel
+from segmentation.segments import Segments
+num_classes = len(Segments.__dict__["__annotations__"])
+# seg_transform = transforms.Compose([
+#     transforms.ToTensor(),
+# ])
+
+# Load segmentation model
+# (later, only load if segmentation model is applied)
+segmodel = SegModel(
+    path_model=Path("./models/deeplabv3_resnet50_finetuned_60k.pt"),
+    # TODO: find a better way of doing this (e.g. config file)
+    num_classes=num_classes,
+    transform=None,
+)
 
 
 class MaxAndSkipEnv(gym.Wrapper):
@@ -72,7 +90,37 @@ class ProcessFrame84(gym.ObservationWrapper):
         # Greyscale (factors from original Mnih paper)
         img = img[:, :, 0] * 0.299 + img[:, :, 1] * 0.587 + img[:, :, 2] * 0.114
         resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
-        x_t = resized_screen[18:102, :]
+        x_t = resized_screen[18 : 102, :]
+        x_t = np.reshape(x_t, [84, 84, 1])
+        return x_t.astype(np.uint8)
+
+
+class ProcessFrame84Segment(gym.ObservationWrapper):
+    """
+    Downsample image to 84 x 84 & greyscale image
+    Currently only works if the input image is of size (240, 256, 3)
+    """
+
+    def __init__(self, env=None):
+        super(ProcessFrame84Segment, self).__init__(env)
+        self.observation_space = gym.spaces.Box(
+            low=0, high=255, shape=(84, 84, 1), dtype=np.uint8
+        )
+
+    def observation(self, obs):
+        return ProcessFrame84Segment.process(obs)
+
+    @staticmethod
+    def process(frame):
+        # if frame.size == 240 * 256 * 3:
+        #     img = np.reshape(frame, [240, 256, 3]).astype(np.float32)
+        img = frame.copy()  # required because of numpy negative strides
+        img = segmodel.apply(img)
+        img = np.uint8(255 * img / segmodel.num_classes)
+        # ^ converts labels [0, num_classes] to [0, 255]
+
+        resized_screen = cv2.resize(img, (84, 110), interpolation=cv2.INTER_AREA)
+        x_t = resized_screen[18 : 102, :]
         x_t = np.reshape(x_t, [84, 84, 1])
         return x_t.astype(np.uint8)
 
@@ -133,19 +181,27 @@ class BufferWrapper(gym.ObservationWrapper):
         return self.buffer
 
 
-def make_env(env):
-    """Simplify screen following original Atari paper"""
+def make_env(env, segment: bool = False):
+    """
+    Simplify screen following original Atari paper
+    
+    If `segment` is True, the frame is converted to a segmentation map using
+    a pre-trained segmentation model (loaded at file init.)
+    """
     env = MaxAndSkipEnv(env)  # repeat action over four frames
-    env = ProcessFrame84(env)  # size to 84 * 84 and greyscale
+    if segment:
+        env = ProcessFrame84Segment(env)  # size to 84 * 84 and segment
+    else:
+        env = ProcessFrame84(env)  # size to 84 * 84 and greyscale
     env = ImageToPyTorch(env)  # convert to (C, H, W) for pytorch
     env = BufferWrapper(env, 4)  # stack four frames in one 'input'
     env = ScaledFloatFrame(env)  # normalise RGB values to [0, 1]
     return env
 
 
-def make_nes_env(env, actions: Optional[str] = None):
+def make_nes_env(env, actions: Optional[str] = None, segment: bool = False):
     """Special wrapper for NES games"""
-    env = make_env(env)
+    env = make_env(env, segment)
     actions = actions or RIGHT_ONLY
     if not actions in [RIGHT_ONLY, SIMPLE_MOVEMENT, COMPLEX_MOVEMENT]:
         e = (

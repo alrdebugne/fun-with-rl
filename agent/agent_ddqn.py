@@ -28,7 +28,7 @@ class DDQNAgent:
 
     def __init__(
         self,
-        state_space: npt.NDArray[np.float64],
+        state_space: npt.NDArray[np.float32],
         action_space: int,
         policy_net: nn.Module,
         policy_net_kwargs: dict,

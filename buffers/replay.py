@@ -4,6 +4,7 @@ import numpy.typing as npt
 from pathlib import Path
 import random
 import torch
+from torch.utils.data.dataset import IterableDataset
 from typing import *
 
 from .sum_tree import SumTree
@@ -19,7 +20,7 @@ class ReplayBuffer:
 
     def __init__(
         self,
-        state_space: npt.NDArray[np.float64],
+        state_space: npt.NDArray[np.float32],
         memory_size: int,
         from_pretrained: bool,
         save_dir: Union[Path, str] = Path("buffer"),
@@ -187,3 +188,11 @@ class PrioritisedReplayBuffer(ReplayBuffer):
             self.tree.update(data_idx, delta)
             # Update max. priority (given to newly drawn samples)
             self.p_max = max(self.p_max, delta)
+
+
+class LightningBuffer(IterableDataset):
+    """
+    TODO: implement as in https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/reinforce-learning-DQN.html
+    """
+    def __init__(self, buffer: ReplayBuffer) -> None:
+        raise NotImplementedError("Compatibility with lightning not yet implemented")

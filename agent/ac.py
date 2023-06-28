@@ -32,7 +32,7 @@ class ActorCritic(nn.Module):
     def __init__(
         self,
         # ~ Env. variables ~
-        state_space: npt.NDArray[np.float64],
+        state_space: npt.NDArray[np.float32],
         action_space: int,
         # ~ Actor variables ~
         policy_lr: float,
