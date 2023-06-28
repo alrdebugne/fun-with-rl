@@ -68,24 +68,25 @@ class ReplayBuffer:
 
     def sample(
             self, batch_size: int, replace: bool, device: str, return_indices: bool = False
-        ) -> Union[Dict[str, torch.Tensor], Tuple[Dict[str, torch.Tensor], npt.NDArray]]:
+        ) -> Union[Tuple[torch.Tensor, ...], Tuple[Tuple[torch.Tensor, ...], npt.NDArray]]:
         """ Samples a batch of transitions uniformly from the buffer """
 
         # Sample `batch_size` transitions at random for experience replay
         idcs = np.random.choice(self.memory_num_experiences, batch_size, replace=replace)
 
-        data = {
-            "s": (self.states[idcs], torch.float32),
-            "a": (self.actions[idcs], torch.long), # needed for `.gather`
-            "r": (self.rewards[idcs], torch.float32),
-            "s_next": (self.states_next[idcs], torch.float32),
-            "d": (self.dones[idcs], torch.uint8),
-        }
         # Convert to tensors
-        data = {k: torch.as_tensor(v, dtype=_dtype).to(device) for k, (v, _dtype) in data.items()}
+        transitions = tuple(zip(
+            torch.as_tensor(self.states[idcs], dtype=torch.float32).to(device),
+            torch.as_tensor(self.actions[idcs], dtype=torch.long).to(device),
+            torch.as_tensor(self.rewards[idcs], dtype=torch.float32).to(device),
+            torch.as_tensor(self.states_next[idcs], dtype=torch.float32).to(device),
+            torch.as_tensor(self.dones[idcs], dtype=torch.uint8).to(device),
+        ))
+        # ^ i.e. transitions[t] = (s[t], a[t], r[t], s_next[t], d[t])
+        
         if return_indices:
-            return data, idcs
-        return data
+            return transitions, idcs
+        return transitions
 
 
     def save(self) -> None:
@@ -131,7 +132,7 @@ class PrioritisedReplayBuffer(ReplayBuffer):
 
     def sample(
         self, batch_size: int, device: str
-    ) -> Tuple[Dict[str, torch.Tensor], torch.Tensor, List[int]]:
+    ) -> Tuple[Tuple[torch.Tensor, ...], torch.Tensor, List[int]]:
         """
         Samples a batch of transitions from the buffer using prioritised
         experience replay.
@@ -166,15 +167,15 @@ class PrioritisedReplayBuffer(ReplayBuffer):
         weights = weights / weights.max()
 
         # Format data & return
-        data = {
-            "s": (self.states[sample_idcs], torch.float32),
-            "a": (self.actions[sample_idcs], torch.long), # needed for `.gather`
-            "r": (self.rewards[sample_idcs], torch.float32),
-            "s_next": (self.states_next[sample_idcs], torch.float32),
-            "d": (self.dones[sample_idcs], torch.uint8),
-        }
-        data = {k: torch.as_tensor(v, dtype=_dtype).to(device) for k, (v, _dtype) in data.items()}
-        return data, weights.squeeze().to(device), tree_idcs
+        transitions = tuple(zip(
+            torch.as_tensor(self.states[sample_idcs], dtype=torch.float32).to(device),
+            torch.as_tensor(self.actions[sample_idcs], dtype=torch.long).to(device),
+            torch.as_tensor(self.rewards[sample_idcs], dtype=torch.float32).to(device),
+            torch.as_tensor(self.states_next[sample_idcs], dtype=torch.float32).to(device),
+            torch.as_tensor(self.dones[sample_idcs], dtype=torch.uint8).to(device),
+        ))
+        # ^ i.e. transitions[t] = (s[t], a[t], r[t], s_next[t], d[t])
+        return transitions, weights.squeeze().to(device), tree_idcs
 
 
     def update_priorities(self, data_idcs: list, td_errors: npt.NDArray[np.float32]):
@@ -192,7 +193,22 @@ class PrioritisedReplayBuffer(ReplayBuffer):
 
 class LightningBuffer(IterableDataset):
     """
-    TODO: implement as in https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/reinforce-learning-DQN.html
+    Wraps ReplayBuffers into an iterable for compatibility with the lightning framework
+    for mixed-precision training in pytorch.
+    After: https://lightning.ai/docs/pytorch/stable/notebooks/lightning_examples/reinforce-learning-DQN.html
+
+    Args:
+        buffer (ReplayBuffer): a replay buffer (with or without PER)
+        batch_size (int): number of experiences to sample at a time
     """
-    def __init__(self, buffer: ReplayBuffer) -> None:
-        raise NotImplementedError("Compatibility with lightning not yet implemented")
+    def __init__(self, buffer: ReplayBuffer, batch_size: int) -> None:
+        if not isinstance(buffer, ReplayBuffer):
+            raise ValueError(f"`buffer` must be of type ReplayBuffer but got type {type(buffer)} instead")
+        self.buffer = buffer
+        self.batch_size = batch_size
+    
+    def __iter__(self, sample_kwargs: dict = {}) -> Iterator[Tuple]:
+        if isinstance(self.buffer, PrioritisedReplayBuffer):
+            transitions, weights, tree_idcs = self.buffer.sample(**sample_kwargs)
+            for i in len(transitions):
+                yield transitions[i], weights[i], tree_idcs[i]
