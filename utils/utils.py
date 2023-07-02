@@ -1,5 +1,6 @@
 # TODO: refactor into utils (general) and agent/utils (RL-specific)
 
+import collections
 from IPython import display
 import matplotlib as mpl
 import matplotlib.animation as animation
@@ -37,11 +38,35 @@ def get_n_trainable_params(model: torch.nn.Module) -> int:
     return n_trainable_params
 
 
-def get_lr(step: int, decay_steps: int, lr_max: float, lr_min: float):
+def decay_lr_linearly(step: int, decay_steps: int, lr_max: float, lr_min: float):
     """
-    Hand-crafted scheduler: decays linearly until lr_min over decay_steps
+    Decays linearly until lr_min over decay_steps
     """
     return max(lr_min, lr_max - (lr_max - lr_min) / decay_steps * step)
+
+
+def get_fancy_decay_factor(step: int, total_steps: int) -> float:
+    """
+    Returns a multiplicative factor that anneals towards 0, used for
+    learning or exploration rate decay.
+
+    Based on https://discovery.ucl.ac.uk/id/eprint/10056194/1/Diagnosis%20and%20referral%20in%20retinal%20disease%20-%20updated.pdf
+    """
+
+    if step < 0.1 * total_steps:
+        return 1.
+    elif step < 0.2 * total_steps:
+        return 1 / 2
+    elif step < 0.5 * total_steps:
+        return 1 / 4
+    elif step < 0.7 * total_steps:
+        return 1 / 8
+    elif step < 0.9 * total_steps:
+        return 1 / 64
+    elif step < 0.95 * total_steps:
+        return 1 / 256
+    else:
+        return 1 / 512
 
 
 def moving_average(a, n):
