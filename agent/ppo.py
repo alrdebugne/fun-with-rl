@@ -3,16 +3,16 @@ import torch
 from torch.distributions import Categorical
 from typing import Dict, Tuple
 
-from agent.core import ActorCritic
+from agent import ActorCritic
 
 logger = logging.getLogger("agent-a2c-ppo")
 
 
-class A2CPPO(ActorCritic):
+class PPOAgent(ActorCritic):
     """ """
 
     def __init__(self, *super_args, **super_kwargs):
-        super(A2CPPO, self).__init__(*super_args, **super_kwargs)
+        super(PPOAgent, self).__init__(*super_args, **super_kwargs)
 
     def update(self, data: dict) -> None:  # type: ignore
         """
@@ -28,8 +28,8 @@ class A2CPPO(ActorCritic):
                 advantages A(t)
                 log-probs log[pi(a_t|s_t)] (from pi used for sampling)
         """
-        # cf. Colab notebook
-        raise NotImplementedError
+        # Hot take: it's cleaner to run update in training loop, outside agent
+        raise NotImplementedError("Update implemented outside agent class, in training script")
         
 
     def _compute_loss_pi(
@@ -62,6 +62,7 @@ class A2CPPO(ActorCritic):
         kl_approx = (logp_a_old - logp_a_new).mean().item()
         entropy = pi_new.entropy().mean().item()
         return pi_loss, {"kl_div": kl_approx, "entropy": entropy}
+
 
     def _compute_loss_vf(self, data: Dict[str, torch.Tensor]) -> torch.Tensor:
         """

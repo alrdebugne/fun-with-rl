@@ -10,7 +10,7 @@ import random
 
 from utils import get_n_trainable_params
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ddqn-agent")
 
 class DDQNAgent(nn.Module):

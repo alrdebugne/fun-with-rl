@@ -12,11 +12,6 @@ class CategoricalCNN(nn.Module):
 
     def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
         super().__init__()
-        # DDQN structure that learnt SMB:
-        # Nx4x84x84 - C32K8S4 - ReLU - C64K4S2 - ReLU - C64K3S1 - ReLU - FC512 - ReLU - FC(n_actions)
-        # Too large for A2C/PPO (I presume because of its lower sample efficiency)
-        # Trying smaller networks instead...
-
         # Copy the same structure as Mnih
         # self.conv = nn.Sequential(
         #     nn.Conv2d(in_channels=input_shape[0], out_channels=16, kernel_size=8, stride=4),
