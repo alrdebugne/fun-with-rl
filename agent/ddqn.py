@@ -29,28 +29,26 @@ class DDQNAgent(nn.Module):
         action_space: int,
         network_class: nn.Module,
         network_kwargs: dict,
-        from_pretrained: bool,
-        save_dir: Union[Path, str] = Path("models"),
+        from_pretrained: Optional[Union[Path, str]] = None,
     ) -> None:
         super().__init__()
 
         self.state_space = state_space
         self.action_space = action_space
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.epsilon = 0.10 # TODO: warm-up steps + decay
+        self.epsilon = 0.10 # currently altered outside agent
 
         # Set up twin networks (same architecture as Mnih et al. 2013)
-        self.save_dir = save_dir
         self.q1 = network_class(**network_kwargs).to(self.device) # primary
         self.q2 = network_class(**network_kwargs).to(self.device) # target
     
         if from_pretrained:
             logger.info("Loading pretrained weights from {save_dir}")
             self.q1.load_state_dict(
-                torch.load(save_dir / Path("q1.pt"), map_location=torch.device(self.device))
+                torch.load(from_pretrained / Path("q1.pt"), map_location=torch.device(self.device))
             )
             self.q2.load_state_dict(
-                torch.load(save_dir / Path("q2.pt"), map_location=torch.device(self.device))
+                torch.load(from_pretrained / Path("q2.pt"), map_location=torch.device(self.device))
             )
 
         n_params = get_n_trainable_params(self.q1)
@@ -70,12 +68,12 @@ class DDQNAgent(nn.Module):
                 # TD3 (Q-clipping)
                 # return torch.argmax(torch.min(self.q1(s), self.q2(s))).item()
     
-    def save(self) -> None:
+    def save(self, save_dir: Path) -> None:
         """Saves network parameters"""
-        self.save_dir.mkdir(parents=True, exist_ok=True)
+        save_dir.mkdir(parents=True, exist_ok=True)
         # Save model weights
-        torch.save(self.q1.state_dict(), self.save_dir / Path("q1.pt"))
-        torch.save(self.q2.state_dict(), self.save_dir / Path("q2.pt"))
+        torch.save(self.q1.state_dict(), save_dir / Path("q1.pt"))
+        torch.save(self.q2.state_dict(), save_dir / Path("q2.pt"))
 
 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
