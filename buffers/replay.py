@@ -22,27 +22,25 @@ class ReplayBuffer:
         self,
         state_space: npt.NDArray[np.float32],
         memory_size: int,
-        from_pretrained: bool,
-        save_dir: Union[Path, str] = Path("buffer"),
+        from_pretrained: Optional[Union[Path, str]],
     ) -> None:
 
         self.memory_size = memory_size
         self.memory_pointer = 0
         self.memory_num_experiences = 0
-        self.save_dir = save_dir
 
         # Create buffers to store transitions
         # Either restore old buffers or create new ones
         if from_pretrained:
             raise NotImplementedError("Need to load from parquet from numpy")
             # Check https://stackoverflow.com/questions/57683276/how-to-convert-numpy-to-parquet-without-using-pandas 
-            self.states = torch.load(save_dir / Path("states.pt"))
-            self.states_next = torch.load(save_dir / Path("states_next.pt"))
-            self.actions = torch.load(save_dir / Path("actions.pt"))
-            self.rewards = torch.load(save_dir / Path("rewards.pt"))
-            self.dones = torch.load(save_dir / Path("dones.pt"))
+            self.states = torch.load(from_pretrained / Path("states.pt"))
+            self.states_next = torch.load(from_pretrained / Path("states_next.pt"))
+            self.actions = torch.load(from_pretrained / Path("actions.pt"))
+            self.rewards = torch.load(from_pretrained / Path("rewards.pt"))
+            self.dones = torch.load(from_pretrained / Path("dones.pt"))
             self.memory_num_experiences = self.states.shape[0]
-            logger.info(f"Restored buffer with size {memory_size} from {str(save_dir)}")
+            logger.info(f"Restored buffer with size {memory_size} from {str(from_pretrained)}")
         else:
             self.states = np.zeros((memory_size, *state_space), dtype=np.float32)
             self.states_next = np.zeros((memory_size, *state_space), dtype=np.float32)
@@ -88,16 +86,16 @@ class ReplayBuffer:
         return data
 
 
-    def save(self) -> None:
+    def save(self, save_dir: Optional[Union[Path, str]]) -> None:
         """ Saves buffer to disc """
         raise NotImplementedError("Need to store to parquet from numpy")
         # Check https://stackoverflow.com/questions/57683276/how-to-convert-numpy-to-parquet-without-using-pandas
-        torch.save(self.states, self.save_dir / Path("states.pt"))
-        torch.save(self.states_next, self.save_dir / Path("states_next.pt"))
-        torch.save(self.actions, self.save_dir / Path("actions.pt"))
-        torch.save(self.rewards, self.save_dir / Path("rewards.pt"))
-        torch.save(self.dones, self.save_dir / Path("dones.pt"))
-        logger.log(f"Successfully saved buffer to {str(self.save_dir)}")
+        torch.save(self.states, save_dir / Path("states.pt"))
+        torch.save(self.states_next, save_dir / Path("states_next.pt"))
+        torch.save(self.actions, save_dir / Path("actions.pt"))
+        torch.save(self.rewards, save_dir / Path("rewards.pt"))
+        torch.save(self.dones, save_dir / Path("dones.pt"))
+        logger.log(f"Successfully saved buffer to {str(save_dir)}")
 
 
 
