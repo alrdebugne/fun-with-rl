@@ -10,7 +10,7 @@ import numpy.typing as npt
 import torch
 import torch.nn as nn
 
-from .solver import CategoricalCNN
+from ..agent.solver import CategoricalCNN
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger("ddqn-agent")
