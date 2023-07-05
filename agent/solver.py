@@ -12,15 +12,7 @@ class CategoricalCNN(nn.Module):
 
     def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
         super().__init__()
-        # Copy the same structure as Mnih
-        # self.conv = nn.Sequential(
-        #     nn.Conv2d(in_channels=input_shape[0], out_channels=16, kernel_size=8, stride=4),
-        #     nn.ReLU(),
-        #     nn.Conv2d(in_channels=16, out_channels=32, kernel_size=4, stride=2),
-        #     nn.ReLU(),
-        # )
-        
-        # Perhaps too simple for Mario, whose screen changes & introduces new elements? (enemies, decor, ...)
+        # Add layer to Mnih's architecture for SMB
         self.conv = nn.Sequential(
             nn.Conv2d(in_channels=input_shape[0], out_channels=32, kernel_size=8, stride=4),
             nn.ReLU(),
@@ -45,6 +37,27 @@ class CategoricalCNN(nn.Module):
         """Forward pass through network"""
         conv_out = self.conv(x).view(x.size()[0], -1)  # flatten
         return self.fc(conv_out)
+
+
+class MnihCNN(CategoricalCNN):
+    """
+    CNN following the exact architecture from Mnih et al. (2015)
+    """
+    def __init__(self, input_shape: Tuple[int, int, int], n_actions: int) -> None:
+        super().__init__()
+        # Overwrite CNN with same structure as Mnih et al. (2015)
+        self.conv = nn.Sequential(
+            nn.Conv2d(in_channels=input_shape[0], out_channels=32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=4, stride=2),
+            nn.ReLU(),
+        )
+        conv_out_size = self._get_conv_out(input_shape)
+        self.fc = nn.Sequential(
+            nn.Linear(conv_out_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, n_actions)
+        )
 
 
 class CategoricalMLP(nn.Module):
